@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車両対戦シミュレーター (カウントダウン・ミニマップ修正版)</title>
+  <title>ローカル対戦　サーキット</title>
   <style>
     :root {
       --bg: #0b0d12;
@@ -307,8 +307,8 @@
 <body>
 
 <div class="container">
-  <h1>車両対戦シミュレーター</h1>
-  <p class="subtitle">アクセルを離してコーナリングと滑りをコントロールして3周を競おう</p>
+  <h1>ローカル対戦</h1>
+  <p class="subtitle">アクセルを調整しコーナリングをコントロールして3周を競え</p>
 
   <div class="monitor-grid" id="race-screen">
     <div class="view-panel p1-view">
@@ -317,7 +317,7 @@
         <div class="view-stats" id="p1-hud">0/3 周 | 0 km/h</div>
       </div>
       <div class="rank-badge rank-1st" id="p1-rank">1位</div>
-      <div class="slip-indicator" id="p1-slip">DRIFT / 滑り中！</div>
+      <div class="slip-indicator" id="p1-slip">DRIFT / スリップ中</div>
       <div class="key-guide">操作: [W] アクセル</div>
       <div class="countdown-overlay" id="p1-countdown">3</div>
       <canvas id="p1Canvas"></canvas>
@@ -329,7 +329,7 @@
         <div class="view-stats" id="p2-hud">0/3 周 | 0 km/h</div>
       </div>
       <div class="rank-badge rank-2nd" id="p2-rank">2位</div>
-      <div class="slip-indicator" id="p2-slip">DRIFT / 滑り中！</div>
+      <div class="slip-indicator" id="p2-slip">DRIFT / スリップ中</div>
       <div class="key-guide">操作: [↑] アクセル</div>
       <div class="countdown-overlay" id="p2-countdown">3</div>
       <canvas id="p2Canvas"></canvas>
