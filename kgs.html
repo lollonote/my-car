@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>車両カスタマイズ ガレージ</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #141720;
+      --border: #232836;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --text: #f1f5f9;
+      --text-sub: #94a3b8;
+      --gold: #f59e0b;
+      --danger: #ef4444;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 15px;
+    }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      background: var(--panel);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h1 {
+      font-size: 1.3rem;
+      text-align: center;
+      margin-top: 0;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    /* 2P対戦への移動ボタン用スタイル */
+    .nav-section {
+      margin-bottom: 15px;
+    }
+    .btn-nav {
+      display: block;
+      width: 100%;
+      background: #8b5cf6;
+      color: #fff;
+      text-align: center;
+      text-decoration: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+      transition: background 0.2s;
+    }
+    .btn-nav:hover {
+      background: #7c3aed;
+    }
+
+    /* コード読込 */
+    .import-section {
+      background: #0d0f14;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .import-flex {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-import {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .btn-import:hover { background: #1d4ed8; }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 5px; }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      background: #0d0f14;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    input:disabled {
+      background: #181b21;
+      color: #64748b;
+      cursor: not-allowed;
+      border-color: #242933;
+    }
+
+    .coin-display-box {
+      background: #0d0f14;
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: var(--gold);
+      margin-bottom: 15px;
+    }
+
+    /* ミニゲーム */
+    .game-section {
+      background: #0d0f14;
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    .game-title {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-bottom: 10px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .slot-machine {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.6rem;
+      font-weight: bold;
+      background: #1a1d24;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .btn-group { display: flex; gap: 8px; }
+    .btn-game {
+      flex: 1;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .btn-game:hover { background: #1d4ed8; }
+
+    /* アップグレード */
+    .upgrade-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+    .upgrade-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0d0f14;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .upgrade-info { font-size: 0.85rem; }
+    .upgrade-btn {
+      background: var(--gold);
+      color: #000;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .upgrade-btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .btn-submit:hover { background: var(--accent-hover); }
+
+    .result-box {
+      margin-top: 15px;
+      background: #0d0f14;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px dashed var(--border);
+      text-align: center;
+    }
+    .code-display {
+      font-family: monospace;
+      font-size: 1.6rem;
+      letter-spacing: 3px;
+      color: #38bdf8;
+      margin: 8px 0;
+      user-select: all;
+    }
+    .status-msg { font-size: 0.75rem; color: var(--accent); margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>ガレージ & カスタマイズ</h1>
+
+  <!-- ローカル2P対戦への移動ボタン -->
+  <div class="nav-section">
+    <a href="https://07mycar70.vercel.app/myk.html" class="btn-nav" target="_blank" rel="noopener noreferrer">🎮 ローカル2P対戦へ移動する</a>
+  </div>
+
+  <!-- コード読込 -->
+  <div class="import-section">
+    <label for="importCode">保存済みセーブコードを読み込む (6文字)</label>
+    <div class="import-flex">
+      <input type="text" id="importCode" placeholder="例: 01A2B3" maxlength="6">
+      <button class="btn-import" onclick="loadSaveCode()">復元</button>
+    </div>
+    <div id="importMsg" class="status-msg"></div>
+  </div>
+
+  <div class="form-group">
+    <label for="driverName">ドライバー名 <span id="lockBadge" style="color:var(--gold); display:none;">(復元中・名前固定)</span></label>
+    <input type="text" id="driverName" value="Driver1" placeholder="名前を入力">
+  </div>
+
+  <div class="coin-display-box">
+    所持コイン: <span id="coinDisplay">100</span> 枚
+  </div>
+
+  <!-- ミニゲーム -->
+  <div class="game-section">
+    <div class="game-title">⚡ コイン稼ぎ</div>
+    <div class="slot-machine" id="slotDisplay">7 | 7 | 7</div>
+    
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <label style="margin:0; white-space:nowrap;">賭け金:</label>
+      <input type="number" id="betAmount" value="10" min="1">
+    </div>
+
+    <div class="btn-group">
+      <button class="btn-game" onclick="clickCoin()">コイン連打 (+1〜クリティカル)</button>
+      <button class="btn-game" style="background:#d97706;" onclick="spinSlot()">スロット</button>
+    </div>
+  </div>
+
+  <!-- ステータスアップグレード -->
+  <div class="upgrade-list">
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        最高速 (PWR): <span id="pwrVal">Lv 3</span>
+      </div>
+      <button class="upgrade-btn" id="btn-pwr" onclick="buyUpgrade('pwr')">強化 (100枚)</button>
+    </div>
+
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        加速力 (ACC): <span id="accVal">Lv 2</span>
+      </div>
+      <button class="upgrade-btn" id="btn-acc" onclick="buyUpgrade('acc')">強化 (100枚)</button>
+    </div>
+
+    <div class="upgrade-item">
+      <div class="upgrade-info">
+        旋回性能 (GRP): <span id="grpVal">Lv 1</span>
+      </div>
+      <button class="upgrade-btn" id="btn-grp" onclick="buyUpgrade('grp')">強化 (100枚)</button>
+    </div>
+  </div>
+
+  <button class="btn-submit" onclick="generateCode()">セーブコード発行</button>
+
+  <div class="result-box">
+    <label>発行された短縮セーブコード (6文字)</label>
+    <div id="codeDisplay" class="code-display">------</div>
+    <small style="color:var(--text-sub);">※対戦側で同じドライバー名を入力して使用</small>
+  </div>
+</div>
+
+<script>
+  const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+  let coins = 100;
+  let pwrLvl = 3;
+  let accLvl = 2;
+  let grpLvl = 1;
+  const COST = 100;
+
+  function updateUI() {
+    document.getElementById('coinDisplay').innerText = coins;
+    document.getElementById('pwrVal').innerText = `Lv ${pwrLvl}`;
+    document.getElementById('accVal').innerText = `Lv ${accLvl}`;
+    document.getElementById('grpVal').innerText = `Lv ${grpLvl}`;
+
+    document.getElementById('btn-pwr').disabled = (coins < COST);
+    document.getElementById('btn-acc').disabled = (coins < COST);
+    document.getElementById('btn-grp').disabled = (coins < COST);
+  }
+
+  // クリティカル連打
+  function clickCoin() {
+    const isCrit = Math.random() < 0.15;
+    const gained = isCrit ? 10 : 1;
+    coins += gained;
+    updateUI();
+  }
+
+  // スロット
+  let isSpinning = false;
+  function spinSlot() {
+    if (isSpinning) return;
+    const betInput = document.getElementById('betAmount');
+    const bet = parseInt(betInput.value) || 0;
+
+    if (bet <= 0 || coins < bet) {
+      alert("賭け金が不正か所持コインが足りません。");
+      return;
+    }
+
+    coins -= bet;
+    updateUI();
+    isSpinning = true;
+
+    const slotEl = document.getElementById('slotDisplay');
+    let spins = 0;
+
+    const timer = setInterval(() => {
+      const r1 = Math.floor(Math.random() * 7) + 1;
+      const r2 = Math.floor(Math.random() * 7) + 1;
+      const r3 = Math.floor(Math.random() * 7) + 1;
+      slotEl.innerText = `${r1} | ${r2} | ${r3}`;
+      spins++;
+
+      if (spins > 12) {
+        clearInterval(timer);
+        isSpinning = false;
+        
+        if (r1 === 7 && r2 === 7 && r3 === 7) {
+          coins += bet * 10;
+          slotEl.innerText = `7 | 7 | 7 🎉`;
+          alert(`JACKPOT!! ${bet * 10} コイン獲得！`);
+        } else if (r1 === r2 && r2 === r3) {
+          coins += bet * 3;
+          slotEl.innerText = `${r1} | ${r2} | ${r3} 🎉`;
+        }
+        updateUI();
+      }
+    }, 70);
+  }
+
+  // アップグレード
+  function buyUpgrade(type) {
+    if (coins < COST) return;
+    if (type === 'pwr') { pwrLvl++; coins -= COST; }
+    if (type === 'acc') { accLvl++; coins -= COST; }
+    if (type === 'grp') { grpLvl++; coins -= COST; }
+    updateUI();
+  }
+
+  // Base62 変換 (標準的な数値演算のみを使用)
+  function encodeBase62(num) {
+    if (num === 0) return "0";
+    let s = "";
+    while (num > 0) {
+      s = B62[num % 62] + s;
+      num = Math.floor(num / 62);
+    }
+    return s;
+  }
+
+  function decodeBase62(str) {
+    let num = 0;
+    for (let i = 0; i < str.length; i++) {
+      const idx = B62.indexOf(str[i]);
+      if (idx === -1) return null;
+      num = num * 62 + idx;
+    }
+    return num;
+  }
+
+  // 復元処理 (完全復元モデル)
+  function loadSaveCode() {
+    const code = document.getElementById('importCode').value.trim();
+    const nameInput = document.getElementById('driverName');
+    const msgEl = document.getElementById('importMsg');
+
+    if (code.length !== 6) {
+      msgEl.style.color = 'var(--danger)';
+      msgEl.innerText = 'コードは6文字で入力してください。';
+      return;
+    }
+
+    const packedStr = code.substring(0, 4);
+    const checkStr = code.substring(4, 6);
+
+    const packed = decodeBase62(packedStr);
+    const inputCheck = decodeBase62(checkStr);
+
+    if (packed === null || inputCheck === null) {
+      msgEl.style.color = 'var(--danger)';
+      msgEl.innerText = '不正なコード形式です。';
+      return;
+    }
+
+    const currentName = nameInput.value.trim() || "Driver1";
+
+    // チェックサム検証
+    let checksum = 0;
+    const str = `${currentName}:${packed}:SECRET_KEY_99`;
+    for (let i = 0; i < str.length; i++) {
+      checksum = (checksum + str.charCodeAt(i) * (i + 1)) % 3844;
+    }
+
+    if (checksum !== inputCheck) {
+      msgEl.style.color = 'var(--danger)';
+      msgEl.innerText = 'ドライバー名が一致しないか、コードが破損しています。';
+      return;
+    }
+
+    // 初期正常コードと同じアンパック演算（16倍ずつ分解）
+    grpLvl = packed & 0x0F;
+    accLvl = (Math.floor(packed / 16)) & 0x0F;
+    pwrLvl = (Math.floor(packed / 256)) & 0x0F;
+    coins  = Math.floor(packed / 4096);
+
+    nameInput.disabled = true;
+    document.getElementById('lockBadge').style.display = 'inline';
+
+    msgEl.style.color = 'var(--accent)';
+    msgEl.innerText = 'データを正常に復元しました。';
+    updateUI();
+  }
+
+  // セーブコード発行 (6文字固定)
+  function generateCode() {
+    const name = document.getElementById('driverName').value.trim() || "Driver1";
+
+    // 範囲制限（オーバーフロー・巨大化防止）
+    const safeCoins = Math.min(Math.max(0, coins), 16383);
+    const safePwr   = Math.min(Math.max(0, pwrLvl), 15);
+    const safeAcc   = Math.min(Math.max(0, accLvl), 15);
+    const safeGrp   = Math.min(Math.max(0, grpLvl), 15);
+
+    // 初期正常コードと同じ構造にパッキング
+    let packed = (safeCoins & 0x3FFF);
+    packed = (packed * 16) + (safePwr & 0x0F);
+    packed = (packed * 16) + (safeAcc & 0x0F);
+    packed = (packed * 16) + (safeGrp & 0x0F);
+
+    // チェックサム計算 (3844 = 62 * 62 = 2文字分)
+    let checksum = 0;
+    const str = `${name}:${packed}:SECRET_KEY_99`;
+    for (let i = 0; i < str.length; i++) {
+      checksum = (checksum + str.charCodeAt(i) * (i + 1)) % 3844;
+    }
+
+    const packedStr = encodeBase62(packed).padStart(4, '0');
+    const checkStr = encodeBase62(checksum).padStart(2, '0');
+
+    document.getElementById('codeDisplay').innerText = packedStr + checkStr;
+  }
+
+  // 初期化
+  updateUI();
+</script>
+
+</body>
+</html>

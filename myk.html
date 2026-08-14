@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>車両対戦シミュレーター (カウントダウン・ミニマップ修正版)</title>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #141720;
+      --border: #232836;
+      --p1: #f43f5e;
+      --p2: #0284c7;
+      --text: #f1f5f9;
+      --text-sub: #94a3b8;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 15px;
+      user-select: none;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2px;
+      font-size: 1.4rem;
+      letter-spacing: 0.05em;
+    }
+    p.subtitle {
+      text-align: center;
+      color: var(--text-sub);
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 0.8rem;
+    }
+    
+    .monitor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: #07080c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 15px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+    }
+    .view-panel {
+      position: relative;
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #1e2330;
+    }
+    .view-panel.p1-view { border-top: 3px solid var(--p1); }
+    .view-panel.p2-view { border-top: 3px solid var(--p2); }
+
+    .rank-badge {
+      position: absolute;
+      top: 38px;
+      left: 10px;
+      z-index: 10;
+      font-size: 1.1rem;
+      font-weight: 800;
+      padding: 2px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+    .rank-1st {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      color: #000;
+      border: 1px solid #fef08a;
+    }
+    .rank-2nd {
+      background: linear-gradient(135deg, #64748b, #94a3b8);
+      color: #fff;
+      border: 1px solid #cbd5e1;
+    }
+
+    .view-header {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .view-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(11, 13, 18, 0.75);
+      backdrop-filter: blur(4px);
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .view-stats {
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: monospace;
+      background: rgba(11, 13, 18, 0.75);
+      backdrop-filter: blur(4px);
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #38bdf8;
+    }
+
+    .slip-indicator {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+      border: 1px solid #d97706;
+      padding: 3px 12px;
+      border-radius: 12px;
+      display: none;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+    }
+
+    .key-guide {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      font-size: 0.7rem;
+      background: rgba(0,0,0,0.7);
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      z-index: 10;
+    }
+
+    .countdown-overlay {
+      position: absolute;
+      inset: 0;
+      background: transparent;
+      pointer-events: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 4rem;
+      font-weight: 900;
+      color: #fbbf24;
+      z-index: 20;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.9), 0 0 15px rgba(251, 191, 36, 0.6);
+      display: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 280px;
+      background: #000;
+    }
+
+    .mini-map-container {
+      position: relative;
+      background: #07080c;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 15px;
+      padding: 6px;
+      text-align: center;
+    }
+    .mini-map-title {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 0.7rem;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      z-index: 5;
+    }
+    canvas#minimapCanvas {
+      width: 100%;
+      height: 180px;
+    }
+
+    .setup-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .player-card {
+      background: var(--panel);
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .p1-card { border-top: 3px solid var(--p1); }
+    .p2-card { border-top: 3px solid var(--p2); }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-sub);
+      margin-bottom: 4px;
+    }
+    .text-input {
+      width: 100%;
+      background: #090b0e;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .text-input:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+
+    .import-btn {
+      width: 100%;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 8px 0;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    .import-btn:hover { background: #1d4ed8; }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+      font-weight: normal;
+    }
+    .badge-none { background: #1e293b; color: #94a3b8; }
+    .badge-ok { background: #064e3b; color: #34d399; }
+    .badge-err { background: #7f1d1d; color: #fca5a5; }
+
+    .error-msg {
+      color: #f87171;
+      font-size: 0.7rem;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .btn-container { text-align: center; margin: 20px 0; }
+    .main-btn {
+      background: #10b981;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 1rem;
+      border: none;
+      padding: 12px 40px;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s;
+    }
+    .main-btn:hover { background: #059669; transform: translateY(-1px); }
+
+    .results {
+      background: var(--panel);
+      padding: 14px;
+      border-radius: 8px;
+      display: none;
+      border: 1px solid var(--border);
+      margin-top: 15px;
+    }
+    .winner-box {
+      font-size: 1.1rem;
+      text-align: center;
+      font-weight: 700;
+      padding: 12px;
+      border-radius: 4px;
+      background: #0f172a;
+      color: #38bdf8;
+      border: 1px solid #1e293b;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>車両対戦シミュレーター</h1>
+  <p class="subtitle">アクセルを離してコーナリングと滑りをコントロールして3周を競おう</p>
+
+  <div class="monitor-grid" id="race-screen">
+    <div class="view-panel p1-view">
+      <div class="view-header">
+        <div class="view-title" id="p1-title-display" style="color:var(--p1);">車両 1</div>
+        <div class="view-stats" id="p1-hud">0/3 周 | 0 km/h</div>
+      </div>
+      <div class="rank-badge rank-1st" id="p1-rank">1位</div>
+      <div class="slip-indicator" id="p1-slip">DRIFT / 滑り中！</div>
+      <div class="key-guide">操作: [W] アクセル</div>
+      <div class="countdown-overlay" id="p1-countdown">3</div>
+      <canvas id="p1Canvas"></canvas>
+    </div>
+
+    <div class="view-panel p2-view">
+      <div class="view-header">
+        <div class="view-title" id="p2-title-display" style="color:var(--p2);">車両 2</div>
+        <div class="view-stats" id="p2-hud">0/3 周 | 0 km/h</div>
+      </div>
+      <div class="rank-badge rank-2nd" id="p2-rank">2位</div>
+      <div class="slip-indicator" id="p2-slip">DRIFT / 滑り中！</div>
+      <div class="key-guide">操作: [↑] アクセル</div>
+      <div class="countdown-overlay" id="p2-countdown">3</div>
+      <canvas id="p2Canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="mini-map-container">
+    <span class="mini-map-title">コース全体図</span>
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+
+  <div class="setup-grid">
+    <div class="player-card p1-card">
+      <h3 style="color:var(--p1); margin:0 0 10px 0; font-size:0.95rem;">
+        車両 1 登録
+        <span id="p1-badge" class="status-badge badge-none">未読み込み</span>
+      </h3>
+      
+      <div class="form-group">
+        <label for="p1-username">ドライバー名</label>
+        <input type="text" id="p1-username" class="text-input" placeholder="Driver1" value="Driver1">
+      </div>
+
+      <div class="form-group">
+        <label for="p1-save-code">セーブデータコード</label>
+        <input type="password" id="p1-save-code" class="text-input" placeholder="••••••">
+        <div id="p1-error" class="error-msg"></div>
+      </div>
+
+      <button class="import-btn" onclick="loadSaveData(1)">セーブデータ適用</button>
+    </div>
+
+    <div class="player-card p2-card">
+      <h3 style="color:var(--p2); margin:0 0 10px 0; font-size:0.95rem;">
+        車両 2 登録
+        <span id="p2-badge" class="status-badge badge-none">未読み込み</span>
+      </h3>
+      
+      <div class="form-group">
+        <label for="p2-username">ドライバー名</label>
+        <input type="text" id="p2-username" class="text-input" placeholder="Driver2" value="Driver2">
+      </div>
+
+      <div class="form-group">
+        <label for="p2-save-code">セーブデータコード</label>
+        <input type="password" id="p2-save-code" class="text-input" placeholder="••••••">
+        <div id="p2-error" class="error-msg"></div>
+      </div>
+
+      <button class="import-btn" onclick="loadSaveData(2)">セーブデータ適用</button>
+    </div>
+  </div>
+
+  <div class="btn-container">
+    <button class="main-btn" onclick="startRaceSequence()">レース開始</button>
+  </div>
+
+  <div class="results" id="results">
+    <div id="winner" class="winner-box"></div>
+  </div>
+</div>
+
+<script>
+  const B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+  function decodeBase62(str) {
+    let num = 0;
+    for (let i = 0; i < str.length; i++) {
+      const idx = B62.indexOf(str[i]);
+      if (idx === -1) return null;
+      num = num * 62 + idx;
+    }
+    return num;
+  }
+
+  const players = {
+    1: { name: 'プレイヤー1', pwr: 25, acc: 25, grp: 25, loaded: false, color: '#f43f5e' },
+    2: { name: 'プレイヤー2', pwr: 25, acc: 25, grp: 25, loaded: false, color: '#0284c7' }
+  };
+
+  const keysPressed = {};
+  
+  window.addEventListener('keydown', (e) => {
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+      e.preventDefault();
+    }
+    keysPressed[e.key] = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    keysPressed[e.key] = false;
+  });
+
+  function loadSaveData(playerNum) {
+    const nameInput = document.getElementById(`p${playerNum}-username`).value.trim();
+    const codeInput = document.getElementById(`p${playerNum}-save-code`).value.trim();
+    const errEl = document.getElementById(`p${playerNum}-error`);
+    const badge = document.getElementById(`p${playerNum}-badge`);
+
+    errEl.style.display = 'none';
+    errEl.innerText = '';
+
+    if (!codeInput) {
+      showError(playerNum, "コードを入力してください。");
+      return;
+    }
+
+    if (codeInput.length !== 6) {
+      showError(playerNum, "無効なコード桁数です。");
+      return;
+    }
+
+    const packedStr = codeInput.substring(0, 4);
+    const checkStr = codeInput.substring(4, 6);
+
+    const packed = decodeBase62(packedStr);
+    const inputCheck = decodeBase62(checkStr);
+
+    if (packed === null || inputCheck === null) {
+      showError(playerNum, "不正な文字が含まれています。");
+      return;
+    }
+
+    const playerName = nameInput || `プレイヤー${playerNum}`;
+
+    let checksum = 0;
+    const str = `${playerName}:${packed}:SECRET_KEY_99`;
+    for (let i = 0; i < str.length; i++) {
+      checksum = (checksum + str.charCodeAt(i) * (i + 1)) % 3844;
+    }
+
+    if (checksum !== inputCheck) {
+      showError(playerNum, "ドライバー名が不一致か、不正なコードです。");
+      return;
+    }
+
+    const grpLvl = packed & 0x0F;
+    const accLvl = (Math.floor(packed / 16)) & 0x0F;
+    const pwrLvl = (Math.floor(packed / 256)) & 0x0F;
+
+    players[playerNum] = {
+      name: playerName,
+      pwr: 25 + pwrLvl * 5,
+      acc: 25 + accLvl * 3,
+      grp: 25 + grpLvl * 2,
+      loaded: true,
+      color: players[playerNum].color
+    };
+
+    document.getElementById(`p${playerNum}-title-display`).innerText = `${playerName} (車両${playerNum})`;
+    badge.innerText = "読み込み完了";
+    badge.className = "status-badge badge-ok";
+  }
+
+  function showError(playerNum, message) {
+    const errEl = document.getElementById(`p${playerNum}-error`);
+    const badge = document.getElementById(`p${playerNum}-badge`);
+    errEl.innerText = message;
+    errEl.style.display = 'block';
+    badge.innerText = "エラー";
+    badge.className = "status-badge badge-err";
+    players[playerNum].loaded = false;
+  }
+
+  const p1Canvas = document.getElementById('p1Canvas');
+  const p2Canvas = document.getElementById('p2Canvas');
+  const miniCanvas = document.getElementById('minimapCanvas');
+  
+  const ctx1 = p1Canvas.getContext('2d');
+  const ctx2 = p2Canvas.getContext('2d');
+  const ctxMini = miniCanvas.getContext('2d');
+
+  const WORLD_SIZE = 4500;
+  const TRACK_WIDTH = 140;
+
+  function resizeCanvas() {
+    const w = p1Canvas.parentElement.clientWidth;
+    p1Canvas.width = w; p1Canvas.height = 280;
+    p2Canvas.width = w; p2Canvas.height = 280;
+    miniCanvas.width = miniCanvas.parentElement.clientWidth;
+    miniCanvas.height = 180;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  const controlPoints = [
+    { x: 600,  y: 3600 },
+    { x: 3800, y: 3600 },
+    { x: 4000, y: 2800 },
+    { x: 3200, y: 2000 },
+    { x: 3800, y: 1400 },
+    { x: 3000, y: 600  },
+    { x: 1800, y: 500  },
+    { x: 800,  y: 1200 },
+    { x: 1400, y: 2200 },
+    { x: 600,  y: 2800 }
+  ];
+
+  function catmullRom(p0, p1, p2, p3, t) {
+    const v0 = (p2 - p0) * 0.5, v1 = (p3 - p1) * 0.5, t2 = t * t, t3 = t2 * t;
+    return (2 * p1 - 2 * p2 + v0 + v1) * t3 + (-3 * p1 + 3 * p2 - 2 * v0 - v1) * t2 + v0 * t + p1;
+  }
+
+  function getSplinePoint(t) {
+    const len = controlPoints.length;
+    let normT = ((t % 1) + 1) % 1;
+    const p = normT * len;
+    const i1 = Math.floor(p) % len, i2 = (i1 + 1) % len, i0 = (i1 - 1 + len) % len, i3 = (i2 + 1) % len;
+    const localT = p - Math.floor(p);
+    return {
+      x: catmullRom(controlPoints[i0].x, controlPoints[i1].x, controlPoints[i2].x, controlPoints[i3].x, localT),
+      y: catmullRom(controlPoints[i0].y, controlPoints[i1].y, controlPoints[i2].y, controlPoints[i3].y, localT)
+    };
+  }
+
+  function getClosestTrackProgress(x, y, currentProgress = 0) {
+    let bestT = currentProgress, minDist = Infinity;
+    for (let i = -15; i <= 35; i++) {
+      let testT = ((currentProgress + (i / 35) * 0.03) % 1 + 1) % 1;
+      let pt = getSplinePoint(testT);
+      let dist = Math.hypot(pt.x - x, pt.y - y);
+      if (dist < minDist) { minDist = dist; bestT = testT; }
+    }
+    return { progress: bestT, distanceToCenter: minDist };
+  }
+
+  function projectWorldToScreen(wx, wy, wz, camera, canvasWidth, canvasHeight) {
+    const dx = wx - camera.x, dy = wy - camera.y, dz = wz - camera.z;
+    const cos = Math.cos(-camera.angle), sin = Math.sin(-camera.angle);
+    const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos, lz = dz;
+    if (ly <= 5) return null;
+    const perspective = 280 / ly;
+    return { x: (canvasWidth / 2) + (lx * perspective), y: (canvasHeight * 0.52) - (lz * perspective), scale: perspective, ly: ly };
+  }
+
+  function drawSkyAndGround(ctx, camera, w, h) {
+    const horizonY = h * 0.52;
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGradient.addColorStop(0.0, '#0f172a');
+    skyGradient.addColorStop(0.5, '#1e293b');
+    skyGradient.addColorStop(0.85, '#334155'); 
+    skyGradient.addColorStop(1.0, '#475569');
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, w, horizonY);
+
+    const groundGradient = ctx.createLinearGradient(0, horizonY, 0, h);
+    groundGradient.addColorStop(0, '#0f1412');
+    groundGradient.addColorStop(1, '#050706');
+    ctx.fillStyle = groundGradient;
+    ctx.fillRect(0, horizonY, w, h - horizonY);
+
+    const fogGradient = ctx.createLinearGradient(0, horizonY - 10, 0, horizonY + 25);
+    fogGradient.addColorStop(0, 'rgba(71, 85, 105, 0.6)');
+    fogGradient.addColorStop(1, 'rgba(15, 20, 18, 0)');
+    ctx.fillStyle = fogGradient;
+    ctx.fillRect(0, horizonY - 10, w, 35);
+  }
+
+  function renderPlayerView3D(ctx, canvas, focusKart, otherKart) {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const camDist = 200;
+    const camera = {
+      x: focusKart.x - Math.cos(focusKart.angle) * camDist,
+      y: focusKart.y - Math.sin(focusKart.angle) * camDist,
+      z: 85,
+      angle: focusKart.angle - Math.PI / 2
+    };
+
+    drawSkyAndGround(ctx, camera, w, h);
+    drawTrack3D(ctx, camera, w, h);
+    drawVehicle3D(ctx, otherKart, camera, w, h);
+    drawVehicle3D(ctx, focusKart, camera, w, h);
+  }
+
+  function drawTrack3D(ctx, camera, w, h) {
+    const steps = 380, trackWidth = TRACK_WIDTH;
+    for (let i = 0; i < steps; i++) {
+      let t1 = i / steps, t2 = (i + 1) / steps;
+      let pt1 = getSplinePoint(t1), pt2 = getSplinePoint(t2);
+      let dx1 = getSplinePoint(t1 + 0.0005).x - pt1.x, dy1 = getSplinePoint(t1 + 0.0005).y - pt1.y;
+      let len1 = Math.hypot(dx1, dy1), nx1 = -dy1 / len1, ny1 = dx1 / len1;
+
+      let sL1 = projectWorldToScreen(pt1.x - nx1 * trackWidth, pt1.y - ny1 * trackWidth, 0, camera, w, h);
+      let sR1 = projectWorldToScreen(pt1.x + nx1 * trackWidth, pt1.y + ny1 * trackWidth, 0, camera, w, h);
+      let sL2 = projectWorldToScreen(pt2.x - nx1 * trackWidth, pt2.y - ny1 * trackWidth, 0, camera, w, h);
+      let sR2 = projectWorldToScreen(pt2.x + nx1 * trackWidth, pt2.y + ny1 * trackWidth, 0, camera, w, h);
+
+      if (sL1 && sR1 && sL2 && sR2) {
+        ctx.beginPath();
+        ctx.fillStyle = '#181a20';
+        ctx.moveTo(sL1.x, sL1.y); ctx.lineTo(sR1.x, sR1.y); ctx.lineTo(sR2.x, sR2.y); ctx.lineTo(sL2.x, sL2.y);
+        ctx.fill();
+
+        if (Math.floor(i / 2) % 2 === 0) {
+          let cLineWidth = 4;
+          let sC1_L = projectWorldToScreen(pt1.x - nx1 * cLineWidth, pt1.y - ny1 * cLineWidth, 1, camera, w, h);
+          let sC1_R = projectWorldToScreen(pt1.x + nx1 * cLineWidth, pt1.y + ny1 * cLineWidth, 1, camera, w, h);
+          let sC2_L = projectWorldToScreen(pt2.x - nx1 * cLineWidth, pt2.y - ny1 * cLineWidth, 1, camera, w, h);
+          let sC2_R = projectWorldToScreen(pt2.x + nx1 * cLineWidth, pt2.y + ny1 * cLineWidth, 1, camera, w, h);
+          
+          if (sC1_L && sC1_R && sC2_L && sC2_R) {
+            ctx.beginPath();
+            ctx.fillStyle = '#eab308';
+            ctx.moveTo(sC1_L.x, sC1_L.y); ctx.lineTo(sC1_R.x, sC1_R.y); ctx.lineTo(sC2_R.x, sC2_R.y); ctx.lineTo(sC2_L.x, sC2_L.y);
+            ctx.fill();
+          }
+        }
+
+        let wLineWidth = 5;
+        let sW1_L1 = projectWorldToScreen(pt1.x - nx1 * (trackWidth - 10), pt1.y - ny1 * (trackWidth - 10), 1, camera, w, h);
+        let sW1_L2 = projectWorldToScreen(pt1.x - nx1 * (trackWidth - 10 - wLineWidth), pt1.y - ny1 * (trackWidth - 10 - wLineWidth), 1, camera, w, h);
+        let sW2_L1 = projectWorldToScreen(pt2.x - nx1 * (trackWidth - 10), pt2.y - ny1 * (trackWidth - 10), 1, camera, w, h);
+        let sW2_L2 = projectWorldToScreen(pt2.x - nx1 * (trackWidth - 10 - wLineWidth), pt2.y - ny1 * (trackWidth - 10 - wLineWidth), 1, camera, w, h);
+
+        if (sW1_L1 && sW1_L2 && sW2_L1 && sW2_L2) {
+          ctx.beginPath();
+          ctx.fillStyle = '#cbd5e1';
+          ctx.moveTo(sW1_L1.x, sW1_L1.y); ctx.lineTo(sW1_L2.x, sW1_L2.y); ctx.lineTo(sW2_L2.x, sW2_L2.y); ctx.lineTo(sW2_L1.x, sW2_L1.y);
+          ctx.fill();
+        }
+
+        let sW1_R1 = projectWorldToScreen(pt1.x + nx1 * (trackWidth - 10), pt1.y + ny1 * (trackWidth - 10), 1, camera, w, h);
+        let sW1_R2 = projectWorldToScreen(pt1.x + nx1 * (trackWidth - 10 - wLineWidth), pt1.y + ny1 * (trackWidth - 10 - wLineWidth), 1, camera, w, h);
+        let sW2_R1 = projectWorldToScreen(pt2.x + nx1 * (trackWidth - 10), pt2.y + ny1 * (trackWidth - 10), 1, camera, w, h);
+        let sW2_R2 = projectWorldToScreen(pt2.x + nx1 * (trackWidth - 10 - wLineWidth), pt2.y + ny1 * (trackWidth - 10 - wLineWidth), 1, camera, w, h);
+
+        if (sW1_R1 && sW1_R2 && sW2_R1 && sW2_R2) {
+          ctx.beginPath();
+          ctx.fillStyle = '#cbd5e1';
+          ctx.moveTo(sW1_R1.x, sW1_R1.y); ctx.lineTo(sW1_R2.x, sW1_R2.y); ctx.lineTo(sW2_R2.x, sW2_R2.y); ctx.lineTo(sW2_R1.x, sW2_R1.y);
+          ctx.fill();
+        }
+
+        let gH = 30;
+        let gL1_Bot = sL1, gL2_Bot = sL2;
+        let gL1_Top = projectWorldToScreen(pt1.x - nx1 * trackWidth, pt1.y - ny1 * trackWidth, gH, camera, w, h);
+        let gL2_Top = projectWorldToScreen(pt2.x - nx1 * trackWidth, pt2.y - ny1 * trackWidth, gH, camera, w, h);
+
+        if (gL1_Bot && gL2_Bot && gL1_Top && gL2_Top) {
+          ctx.beginPath();
+          ctx.fillStyle = (i % 2 === 0) ? '#64748b' : '#475569';
+          ctx.moveTo(gL1_Bot.x, gL1_Bot.y); ctx.lineTo(gL1_Top.x, gL1_Top.y); ctx.lineTo(gL2_Top.x, gL2_Top.y); ctx.lineTo(gL2_Bot.x, gL2_Bot.y);
+          ctx.fill();
+        }
+
+        let gR1_Bot = sR1, gR2_Bot = sR2;
+        let gR1_Top = projectWorldToScreen(pt1.x + nx1 * trackWidth, pt1.y + ny1 * trackWidth, gH, camera, w, h);
+        let gR2_Top = projectWorldToScreen(pt2.x + nx1 * trackWidth, pt2.y + ny1 * trackWidth, gH, camera, w, h);
+
+        if (gR1_Bot && gR2_Bot && gR1_Top && gR2_Top) {
+          ctx.beginPath();
+          ctx.fillStyle = (i % 2 === 0) ? '#64748b' : '#475569';
+          ctx.moveTo(gR1_Bot.x, gR1_Bot.y); ctx.lineTo(gR1_Top.x, gR1_Top.y); ctx.lineTo(gR2_Top.x, gR2_Top.y); ctx.lineTo(gR2_Bot.x, gR2_Bot.y);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function drawVehicle3D(ctx, kart, camera, w, h) {
+    let pt = projectWorldToScreen(kart.x, kart.y, 0, camera, w, h);
+    if (!pt) return;
+    ctx.save();
+    ctx.translate(pt.x, pt.y);
+    ctx.scale(pt.scale * 1.1, pt.scale * 1.1);
+    ctx.rotate(kart.angle - (camera.angle + Math.PI / 2));
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(-22, -16, 44, 32);
+
+    ctx.fillStyle = kart.color;
+    ctx.beginPath();
+    ctx.roundRect(-20, -14, 40, 28, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(-8, -10, 18, 20);
+
+    ctx.restore();
+  }
+
+  function drawMiniMap(karts) {
+    ctxMini.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+    
+    // 縦横比を均等にするため、キャンバスの幅・高さからアスペクト比を考慮したスケールを計算
+    const mapWidthRange = 4600;
+    const mapHeightRange = 3600;
+    const scaleX = miniCanvas.width / mapWidthRange;
+    const scaleY = miniCanvas.height / mapHeightRange;
+    const uniformScale = Math.min(scaleX, scaleY) * 0.85;
+
+    ctxMini.save();
+    // 中央に配置するためのオフセット計算
+    ctxMini.translate(miniCanvas.width / 2, miniCanvas.height / 2);
+    ctxMini.scale(uniformScale, uniformScale);
+    ctxMini.translate(-2300, -2100);
+
+    // コース外枠（背景・ガードレール）
+    ctxMini.beginPath(); 
+    ctxMini.strokeStyle = '#1e293b'; 
+    ctxMini.lineWidth = TRACK_WIDTH * 1.6;
+    ctxMini.lineCap = 'round';
+    ctxMini.lineJoin = 'round';
+    let st = getSplinePoint(0); 
+    ctxMini.moveTo(st.x, st.y);
+    for (let i = 1; i <= 200; i++) { 
+      let pt = getSplinePoint(i / 200); 
+      ctxMini.lineTo(pt.x, pt.y); 
+    }
+    ctxMini.closePath(); 
+    ctxMini.stroke();
+
+    // コース内面
+    ctxMini.beginPath(); 
+    ctxMini.strokeStyle = '#334155'; 
+    ctxMini.lineWidth = TRACK_WIDTH * 0.7;
+    ctxMini.moveTo(st.x, st.y);
+    for (let i = 1; i <= 200; i++) { 
+      let pt = getSplinePoint(i / 200); 
+      ctxMini.lineTo(pt.x, pt.y); 
+    }
+    ctxMini.closePath(); 
+    ctxMini.stroke();
+
+    // 車両位置の描画
+    karts.forEach(k => {
+      ctxMini.beginPath(); 
+      ctxMini.arc(k.x, k.y, 80, 0, Math.PI * 2);
+      ctxMini.fillStyle = k.color; 
+      ctxMini.fill();
+      ctxMini.lineWidth = 20;
+      ctxMini.strokeStyle = '#ffffff';
+      ctxMini.stroke();
+    });
+    ctxMini.restore();
+  }
+
+  let animId = null;
+  const TOTAL_LAPS = 3;
+
+  function startRaceSequence() {
+    if (!players[1].loaded || !players[2].loaded) {
+      alert("両方のセーブコードを適用してください。");
+      return;
+    }
+
+    document.getElementById('race-screen').scrollIntoView({ behavior: 'smooth' });
+
+    if (animId) cancelAnimationFrame(animId);
+    document.getElementById('results').style.display = 'none';
+
+    const p0 = getSplinePoint(0);
+    const pNext = getSplinePoint(0.002);
+    const initAngle = Math.atan2(pNext.y - p0.y, pNext.x - p0.x);
+
+    const karts = [
+      { id: 1, ...players[1], x: p0.x - Math.sin(initAngle) * 50, y: p0.y + Math.cos(initAngle) * 50, vx: 0, vy: 0, angle: initAngle, speed: 0, progress: 0, lap: 0, isSlipping: false },
+      { id: 2, ...players[2], x: p0.x + Math.sin(initAngle) * 50, y: p0.y - Math.cos(initAngle) * 50, vx: 0, vy: 0, angle: initAngle, speed: 0, progress: 0, lap: 0, isSlipping: false }
+    ];
+
+    renderPlayerView3D(ctx1, p1Canvas, karts[0], karts[1]);
+    renderPlayerView3D(ctx2, p2Canvas, karts[1], karts[0]);
+    drawMiniMap(karts);
+
+    const c1 = document.getElementById('p1-countdown');
+    const c2 = document.getElementById('p2-countdown');
+    c1.style.display = 'flex';
+    c2.style.display = 'flex';
+
+    let count = 3;
+    c1.innerText = count;
+    c2.innerText = count;
+
+    let raceStarted = false;
+
+    let countInterval = setInterval(() => {
+      count--;
+      if (count > 0) {
+        c1.innerText = count;
+        c2.innerText = count;
+      } else if (count === 0) {
+        c1.innerText = "GO!";
+        c2.innerText = "GO!";
+        raceStarted = true; // "GO!" が表示された瞬間に操作可能にする
+      } else {
+        clearInterval(countInterval);
+        c1.style.display = 'none';
+        c2.style.display = 'none';
+        runRace(karts, () => raceStarted);
+      }
+    }, 1000);
+  }
+
+  function runRace(karts, getRaceStarted) {
+    let winnerDeclared = false;
+
+    function animate() {
+      if (winnerDeclared) return;
+
+      const started = getRaceStarted();
+
+      karts.forEach((k) => {
+        if (k.lap < TOTAL_LAPS) {
+          const trackData = getClosestTrackProgress(k.x, k.y, k.progress);
+          const oldProgress = k.progress;
+          k.progress = trackData.progress;
+
+          if (oldProgress > 0.85 && k.progress < 0.15) {
+            k.lap++;
+            if (k.lap >= TOTAL_LAPS && !winnerDeclared) {
+              winnerDeclared = true;
+            }
+          }
+
+          let isAccel = false;
+          if (started) {
+            if (k.id === 1) {
+              isAccel = keysPressed['w'] || keysPressed['W'];
+            } else if (k.id === 2) {
+              isAccel = keysPressed['ArrowUp'];
+            }
+          }
+
+          let maxSpeed = 11.5 + (k.pwr * 0.42);
+          let accelPower = 0.14 + (k.acc * 0.008);
+
+          if (isAccel) {
+            k.speed = Math.min(maxSpeed, k.speed + accelPower);
+          } else {
+            k.speed *= 0.985;
+          }
+
+          let lookaheadT = (k.progress + 0.02) % 1;
+          let targetPt = getSplinePoint(lookaheadT);
+          let targetAngle = Math.atan2(targetPt.y - k.y, targetPt.x - k.x);
+          let steerAngle = (targetAngle - k.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+
+          let turnAbility = 0.048;
+          let angleDiff = Math.max(-turnAbility, Math.min(turnAbility, steerAngle));
+          k.angle += angleDiff;
+
+          let gripFactor = 0.08 + (k.grp * 0.007); 
+          let currentSpeedRatio = Math.abs(k.speed) / maxSpeed;
+          let centrifugalForce = Math.abs(angleDiff) * currentSpeedRatio;
+
+          k.isSlipping = (centrifugalForce > (0.015 + k.grp * 0.0006)) && (k.speed > 6);
+
+          let forwardVx = Math.cos(k.angle) * k.speed;
+          let forwardVy = Math.sin(k.angle) * k.speed;
+          let currentGrip = k.isSlipping ? (gripFactor * 0.3) : gripFactor;
+          
+          k.vx = k.vx * (1 - currentGrip) + forwardVx * currentGrip;
+          k.vy = k.vy * (1 - currentGrip) + forwardVy * currentGrip;
+
+          k.x += k.vx;
+          k.y += k.vy;
+
+          let centerPt = getSplinePoint(k.progress);
+          let dx = k.x - centerPt.x, dy = k.y - centerPt.y;
+          let distFromCenter = Math.hypot(dx, dy);
+          let maxAllowedDist = TRACK_WIDTH - 25;
+
+          if (distFromCenter > maxAllowedDist) {
+            let angleToCenter = Math.atan2(centerPt.y - k.y, centerPt.x - k.x);
+            k.x = centerPt.x - Math.cos(angleToCenter) * maxAllowedDist;
+            k.y = centerPt.y - Math.sin(angleToCenter) * maxAllowedDist;
+            
+            k.speed *= 0.82;
+            k.vx *= 0.82;
+            k.vy *= 0.82;
+          }
+
+          const slipEl = document.getElementById(`p${k.id}-slip`);
+          slipEl.style.display = k.isSlipping ? 'block' : 'none';
+        }
+      });
+
+      let k1Score = karts[0].lap + karts[0].progress;
+      let k2Score = karts[1].lap + karts[1].progress;
+
+      const p1RankEl = document.getElementById('p1-rank');
+      const p2RankEl = document.getElementById('p2-rank');
+
+      if (k1Score >= k2Score) {
+        p1RankEl.innerText = "1位"; p1RankEl.className = "rank-badge rank-1st";
+        p2RankEl.innerText = "2位"; p2RankEl.className = "rank-badge rank-2nd";
+      } else {
+        p1RankEl.innerText = "2位"; p1RankEl.className = "rank-badge rank-2nd";
+        p2RankEl.innerText = "1位"; p2RankEl.className = "rank-badge rank-1st";
+      }
+
+      renderPlayerView3D(ctx1, p1Canvas, karts[0], karts[1]);
+      renderPlayerView3D(ctx2, p2Canvas, karts[1], karts[0]);
+      drawMiniMap(karts);
+
+      karts.forEach((k, i) => {
+        const id = i + 1;
+        document.getElementById(`p${id}-hud`).innerText = `${Math.min(TOTAL_LAPS, k.lap)}/3 周 | ${Math.round(k.speed * 18)} km/h`;
+      });
+
+      if (winnerDeclared) {
+        let winner = k1Score >= k2Score ? karts[0] : karts[1];
+        document.getElementById('winner').innerText = `🏆 勝者：${winner.name} (${winner.id === 1 ? '車両1' : '車両2'})`;
+        document.getElementById('results').style.display = 'block';
+        return;
+      }
+
+      animId = requestAnimationFrame(animate);
+    }
+
+    animId = requestAnimationFrame(animate);
+  }
+
+  const startPt = getSplinePoint(0);
+  drawMiniMap([{ x: startPt.x, y: startPt.y, color: players[1].color }, { x: startPt.x, y: startPt.y, color: players[2].color }]);
+</script>
+
+</body>
+</html>
