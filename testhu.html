@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wi-Fi プラザ！</title>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      transition: background 1s ease;
+    }
+
+    #viewport {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      perspective: 1000px;
+      transition: background 1.5s ease;
+    }
+
+    /* 空と雲 */
+    .sky-decoration {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 55%;
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 1s ease;
+      overflow: hidden;
+    }
+
+    /* くっきりとしたアニメーション付きの雲 */
+    .cloud {
+      position: absolute;
+      background: #ffffff;
+      border-radius: 50px;
+      opacity: 0.95;
+      /* 輪郭をクッキリさせるためのシャドウ */
+      box-shadow: 
+        15px 12px 0 0px #ffffff, 
+        30px 4px 0 -2px #ffffff, 
+        0px 0px 10px rgba(0, 0, 0, 0.15);
+      transition: background 1.5s ease, opacity 1s ease;
+      will-change: transform;
+      animation: moveCloud linear infinite;
+    }
+
+    @keyframes moveCloud {
+      from { transform: translateX(-250px); }
+      to   { transform: translateX(100vw); }
+    }
+
+    /* 3D変形された地面 stage */
+    #stage-3d {
+      position: absolute;
+      width: 2000px;
+      height: 2000px;
+      left: 50%;
+      top: 50%;
+      margin-left: -1000px;
+      margin-top: -800px;
+      transform-style: preserve-3d;
+      transform: rotateX(55deg) rotateZ(0deg) translateZ(0px);
+      z-index: 2;
+    }
+
+    #ground-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    #bg-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transition: filter 1s ease;
+    }
+
+    .lamp-glow {
+      position: absolute;
+      width: 700px;
+      height: 700px;
+      margin-left: -350px;
+      margin-top: -350px;
+      background: radial-gradient(
+        circle, 
+        rgba(255, 220, 120, 0.55) 0%, 
+        rgba(255, 170, 60, 0.2) 40%, 
+        rgba(255, 140, 0, 0.05) 65%, 
+        rgba(0,0,0,0) 80%
+      );
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+      filter: blur(20px);
+      transition: opacity 1s ease;
+      z-index: 1;
+    }
+
+    .streetlight {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      margin-top: -10px;
+      transform-style: preserve-3d;
+      z-index: 10;
+    }
+    .streetlight-wrapper {
+      width: 100%;
+      height: 100%;
+      transform: rotateX(-55deg);
+      transform-origin: bottom center;
+      position: relative;
+    }
+    .pole {
+      position: absolute;
+      bottom: 0;
+      left: 8px;
+      width: 4px;
+      height: 80px;
+      background: #444;
+      border-radius: 2px;
+    }
+    .lamp {
+      position: absolute;
+      bottom: 76px;
+      left: -2px;
+      width: 24px;
+      height: 24px;
+      background: #ccc;
+      border-radius: 50%;
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.6);
+      transition: background 0.5s, box-shadow 0.5s;
+    }
+
+    #ui-panel {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(5px);
+      padding: 12px 16px;
+      border-radius: 20px;
+      border: 3px solid #e0ded8;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      width: 230px;
+      transition: background 0.5s, color 0.5s, border-color 0.5s;
+    }
+    h3 { font-size: 12px; margin-bottom: 4px; color: #777; }
+    .status { font-size: 12px; margin-bottom: 6px; color: #0099ff; font-weight: bold; }
+    .info-status { font-size: 11px; margin-bottom: 4px; color: #444; font-weight: bold; }
+    .color-picker { display: flex; gap: 8px; margin-bottom: 6px; margin-top: 4px; }
+    .color-btn {
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
+      cursor: pointer; transition: transform 0.2s;
+    }
+    .color-btn:hover { transform: scale(1.15); }
+    .color-btn.selected { border-color: #444; }
+
+    /* キャラクターレイヤー */
+    .avatar-container {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      margin-left: -35px;
+      margin-top: -35px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      transform-style: preserve-3d;
+    }
+
+    .avatar-wrapper {
+      width: 100%;
+      height: 100%;
+      transform: rotateX(-55deg) scale(1.2);
+      transform-origin: bottom center;
+      position: relative;
+    }
+
+    .avatar-shadow {
+      position: absolute;
+      bottom: 2px;
+      left: 15%;
+      width: 70%;
+      height: 16px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 50%;
+      filter: blur(4px);
+      transform: rotateX(55deg);
+    }
+
+    .avatar-svg-box {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      z-index: 2;
+    }
+    .avatar-svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 8px 8px rgba(0,0,0,0.18));
+    }
+
+    /* 画面最前面（2D）の独立入力UI */
+    #my-chat-input-container {
+      position: fixed;
+      width: 160px;
+      z-index: 9999;
+      transform: translate(-50%, 0);
+      pointer-events: auto;
+      will-change: left, top;
+    }
+
+    #my-chat-input {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      border-radius: 18px;
+      border: 2px solid #d0d0d0;
+      background: rgba(255, 255, 255, 0.95);
+      color: #222;
+      text-align: center;
+      outline: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #my-chat-input::placeholder {
+      color: #888;
+      font-weight: normal;
+    }
+    #my-chat-input:focus {
+      border-color: #0099ff;
+      box-shadow: 0 4px 16px rgba(0, 153, 255, 0.4);
+    }
+
+    /* 画面最前面（2D）の独立吹き出しコンテナ */
+    #bubble-container-2d {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    .chat-bubble-2d {
+      position: fixed;
+      transform: translate(-50%, -100%);
+      background: #ffffff;
+      color: #222;
+      padding: 6px 12px;
+      border-radius: 14px;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border: 2px solid #e5e5e5;
+      pointer-events: none;
+      animation: pop 0.2s ease-out;
+      will-change: left, top;
+    }
+    .chat-bubble-2d::after {
+      content: '';
+      position: absolute;
+      bottom: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 7px 7px 0;
+      border-style: solid;
+      border-color: #ffffff transparent;
+    }
+
+    @keyframes pop { from { transform: translate(-50%, -90%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -100%) scale(1); opacity: 1; } }
+    /* 空の中に収まる雨キャンバス */
+    #rain-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2; /* 雲の上に描画 */
+    }
+  </style>
+</head>
+<body>
+
+<div id="viewport">
+    <div class="sky-decoration" id="sky-deco">
+      <canvas id="rain-canvas"></canvas>
+    </div>
+
+    <div id="stage-3d">
+      <div id="ground-layer">
+        <canvas id="bg-canvas"></canvas>
+        <div class="lamp-glow" style="left: 600px; top: 400px;"></div>
+        <div class="lamp-glow" style="left: 1400px; top: 400px;"></div>
+        <div class="lamp-glow" style="left: 400px; top: 1000px;"></div>
+        <div class="lamp-glow" style="left: 1600px; top: 1000px;"></div>
+        <div class="lamp-glow" style="left: 800px; top: 1500px;"></div>
+        <div class="lamp-glow" style="left: 1200px; top: 1500px;"></div>
+      </div>
+
+      <div class="streetlight" style="left: 600px; top: 400px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1400px; top: 400px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 400px; top: 1000px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1600px; top: 1000px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 800px; top: 1500px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1200px; top: 1500px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+    </div>
+
+    <!-- 画面最前面（2D）レイヤー -->
+    <div id="bubble-container-2d"></div>
+
+    <div id="my-chat-input-container">
+      <input type="text" id="my-chat-input" placeholder="メッセージを入力..." autocomplete="off">
+    </div>
+    
+    <div id="ui-panel">
+      <h3>接続ステータス</h3>
+      <div id="status" class="status">接続中...</div>
+      <div id="location-status" class="info-status">位置: 取得中...</div>
+      <div id="weather-status" class="info-status">天気: 取得中...</div>
+      <div id="time-status" class="info-status">時間帯: 取得中...</div>
+      <h3>色を選択</h3>
+      <div class="color-picker" id="color-picker"></div>
+      <p style="font-size: 10px; color: #888;">[矢印キー] / [WASD] で移動</p>
+    </div>
+  </div>
+
+<script>
+  const SCALE = 1.3;
+  let currentWeatherCode = 0; // 天気コード保持用
+
+  // 天気コードと名称・タイプのマッピング
+  const weatherMap = {
+    0: { name: '快晴', type: 'clear' },
+    1: { name: '晴れ', type: 'clear' },
+    2: { name: '一部曇り', type: 'partly_cloudy' },
+    3: { name: '曇り', type: 'cloudy' },
+    45: { name: '霧', type: 'fog' },
+    48: { name: '着氷性の霧', type: 'fog' },
+    51: { name: '軽い小雨', type: 'rain' },
+    53: { name: '小雨', type: 'rain' },
+    55: { name: '強い小雨', type: 'rain' },
+    61: { name: '弱い雨', type: 'rain' },
+    63: { name: '雨', type: 'rain' },
+    65: { name: '強い雨', type: 'rain' },
+    71: { name: '弱い雪', type: 'snow' },
+    73: { name: '雪', type: 'snow' },
+    75: { name: '強い雪', type: 'snow' },
+    80: { name: 'にわか雨', type: 'rain' },
+    81: { name: '強いにわか雨', type: 'rain' },
+    82: { name: '激しいにわか雨', type: 'rain' },
+    95: { name: '雷雨', type: 'thunder' }
+  };
+  // 全国主要都市のアメダス観測所IDマップ
+  const amedasStationMap = {
+    '北海道': '14163', '青森県': '31441', '岩手県': '33101', '宮城県': '34121', '秋田県': '32286',
+    '山形県': '35216', '福島県': '36116', '茨城県': '40166', '栃木県': '41277', '群馬県': '42251',
+    '埼玉県': '43056', '千葉県': '45147', '東京都': '44132', '神奈川県': '46106', '新潟県': '54232',
+    '富山県': '55102', '石川県': '56227', '福井県': '57066', '山梨県': '49142', '長野県': '48141',
+    '岐阜県': '52586', '静岡県': '50221', '愛知県': '51106', '三重県': '53131', '滋賀県': '60131',
+    '京都府': '61286', '大阪府': '62078', '兵庫県': '63511', '奈良県': '64036', '和歌山県': '65041',
+    '鳥取県': '69122', '島根県': '68132', '岡山県': '66401', '広島県': '67411', '山口県': '81226',
+    '徳島県': '71106', '香川県': '72061', '愛媛県': '73166', '高知県': '74181', '福岡県': '82182',
+    '佐賀県': '85141', '長崎県': '84112', '熊本県': '86141', '大分県': '83216', '宮崎県': '87251',
+    '鹿児島県': '88686', '沖縄県': '91197'
+  };
+
+  function drawPlazaTiles() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width = 2000;
+    const height = canvas.height = 2000;
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const maxRadius = 980;
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.fillStyle = '#f0eee6';
+    ctx.fill();
+
+    const colors = ['#e8e5dc', '#ece9e0', '#e3dfd4', '#f5f3eb', '#dedad0'];
+    const ringWidth = 28 * SCALE; 
+    const tileWidthBase = 26 * SCALE; 
+    let ringCount = 0;
+
+    for (let r = 20 * SCALE; r < maxRadius; r += ringWidth) {
+      ringCount++;
+      const circumference = 2 * Math.PI * r;
+      const tileCount = Math.floor(circumference / tileWidthBase);
+      const angleStep = (2 * Math.PI) / tileCount;
+
+      const offsetAngle = (ringCount % 2 === 0) ? angleStep / 2 : 0;
+
+      for (let i = 0; i < tileCount; i++) {
+        const startAngle = i * angleStep + offsetAngle;
+        const endAngle = startAngle + angleStep - 0.012;
+
+        const colorIndex = (Math.abs(Math.sin(ringCount * 12 + i * 7)) * colors.length) | 0;
+        ctx.fillStyle = colors[colorIndex];
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, startAngle, endAngle, false);
+        ctx.arc(centerX, centerY, r + ringWidth - (2 * SCALE), endAngle, startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#d4cebe';
+    ctx.stroke();
+
+    const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    grad.addColorStop(0.7, 'rgba(255, 255, 255, 0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 雲の生成・更新関数
+  function renderClouds(weatherType, isNight) {
+    const skyDeco = document.getElementById('sky-deco');
+    // キャンバスを消さずに、既存の雲(.cloud)だけをクリア
+    skyDeco.querySelectorAll('.cloud').forEach(c => c.remove());
+
+    let cloudCount = 3;
+    let cloudColor = '#ffffff';
+
+    if (weatherType === 'clear') {
+      cloudCount = 2;
+    } else if (weatherType === 'partly_cloudy') {
+      cloudCount = 4;
+    } else if (weatherType === 'cloudy') {
+      cloudCount = 7;
+      cloudColor = isNight ? '#4a525d' : '#d2d9e0';
+    } else if (weatherType === 'rain' || weatherType === 'thunder') {
+      cloudCount = 9;
+      cloudColor = isNight ? '#2a3038' : '#8fa0b0';
+    } else if (weatherType === 'snow') {
+      cloudCount = 6;
+      cloudColor = '#e6f0fa';
+    }
+
+    for (let i = 0; i < cloudCount; i++) {
+      const cloud = document.createElement('div');
+      cloud.className = 'cloud';
+      
+      const width = 100 + Math.random() * 120;
+      const height = width * 0.35;
+      const top = 5 + Math.random() * 35; 
+      const duration = 25 + Math.random() * 35; // 流れ切るスピード
+      const delay = -Math.random() * duration;  // ランダム初期位置
+
+      cloud.style.width = `${width}px`;
+      cloud.style.height = `${height}px`;
+      cloud.style.top = `${top}%`;
+      cloud.style.background = cloudColor;
+      cloud.style.animationDuration = `${duration}s`;
+      cloud.style.animationDelay = `${delay}s`;
+
+      skyDeco.appendChild(cloud);
+    }
+  }
+
+// 天気タイプを判定する補助関数
+function parseJmaWeather(text) {
+  // スペースを統一し、最初の主要な天気（「時々」「のち」の前の単語）を抽出
+  const primaryText = text.trim().split(/[\s ]+/)[0];
+
+  if (primaryText.includes('雨') || primaryText.includes('雷')) {
+    return { name: text, type: 'rain' };
+  }
+  if (primaryText.includes('雪')) {
+    return { name: text, type: 'snow' };
+  }
+  if (primaryText.includes('曇') || primaryText.includes('くもり')) {
+    return { name: text, type: 'cloudy' };
+  }
+  return { name: text, type: 'clear' };
+}
+  // 位置情報と天気の取得（気象庁API版）
+  // アメダスのリアルタイム降水量を判定する処理
+  async function getRealtimeAmedasRain(regionName) {
+    try {
+      // 1. 最新の観測日時を取得
+      const timeRes = await fetch('https://www.jma.go.jp/bosai/amedas/data/latest_time.txt');
+      const timeText = await timeRes.text();
+      // 日時文字列から不要な文字を除去し、秒の末尾を「00」にする
+      const formattedTime = timeText.trim().replace(/[-T:+]/g, '').slice(0, 10) + '0000';
+
+      // 2. 最新のアメダスデータを取得
+      const amedasRes = await fetch(`https://www.jma.go.jp/bosai/amedas/data/map/${formattedTime}.json`);
+      const amedasData = await amedasRes.json();
+
+      // 3. 地域に対応する観測所データを抽出
+      const stnId = amedasStationMap[regionName] || '44132';
+      const station = amedasData[stnId];
+
+      if (station && station.rain10m && station.rain10m[0] > 0) {
+      const rainVal = station.rain10m[0];
+      if (rainVal >= 2.0) return { name: '強い雨', type: 'rain' };
+      if (rainVal >= 0.5) return { name: '雨', type: 'rain' };
+      return { name: '小雨', type: 'rain' };
+    }
+    return null; // 0mmまたはデータなし時は予報APIへフォールバック
+    } catch (e) {
+      console.warn('アメダス取得スキップ:', e);
+      return null;
+    }
+  }
+  // 位置情報と天気の取得（アメダス実測＋気象庁予報）
+  async function fetchLocationAndWeather() {
+    const locStatus = document.getElementById('location-status');
+    const weatherStatus = document.getElementById('weather-status');
+
+    try {
+      const ipRes = await fetch('https://ipwho.is/?lang=ja');
+      const ipData = await ipRes.json();
+      if (!ipData.success) throw new Error('位置情報エラー');
+
+      const region = ipData.region || ipData.city || '東京都';
+      locStatus.innerText = `現在地: ${region}`;
+
+      // ① アメダスのリアルタイム降水量チェック
+      const amedasResult = await getRealtimeAmedasRain(region);
+
+      if (amedasResult) {
+        window.currentJmaWeather = amedasResult;
+        weatherStatus.innerText = `天気: ${amedasResult.name} (実測)`;
+      } else {
+        // ② 雨が降っていない場合は気象庁の予報データを参照
+        const prefCodeMap = {
+          '北海道': '016000', '青森県': '020000', '岩手県': '030000', '宮城県': '040000', '秋田県': '050000',
+          '山形県': '060000', '福島県': '070000', '茨城県': '080000', '栃木県': '090000', '群馬県': '100000',
+          '埼玉県': '110000', '千葉県': '120000', '東京都': '130000', '神奈川県': '140000', '新潟県': '150000',
+          '富山県': '160000', '石川県': '170000', '福井県': '180000', '山梨県': '190000', '長野県': '200000',
+          '岐阜県': '210000', '静岡県': '220000', '愛知県': '230000', '三重県': '240000', '滋賀県': '250000',
+          '京都府': '260000', '大阪府': '270000', '兵庫県': '280000', '奈良県': '290000', '和歌山県': '300000',
+          '鳥取県': '310000', '島根県': '320000', '岡山県': '330000', '広島県': '340000', '山口県': '350000',
+          '徳島県': '360000', '香川県': '370000', '愛媛県': '380000', '高知県': '390000', '福岡県': '400000',
+          '佐賀県': '410000', '長崎県': '420000', '熊本県': '430000', '大分県': '440000', '宮崎県': '450000',
+          '鹿児島県': '460100', '沖縄県': '471000'
+        };
+
+        const jmaCode = prefCodeMap[region] || '130000';
+        const jmaRes = await fetch(`https://www.jma.go.jp/bosai/forecast/data/forecast/${jmaCode}.json`);
+        const jmaData = await jmaRes.json();
+
+        const weatherText = jmaData[0].timeSeries[0].areas[0].weathers[0];
+        const parsedWeather = parseJmaWeather(weatherText);
+
+        window.currentJmaWeather = parsedWeather;
+        const shortText = weatherText.trim().split(/[\s ]+/)[0];
+        weatherStatus.innerText = `天気: ${shortText}`;
+      }
+
+      updateEnvironmentByTimeAndWeather();
+
+    } catch (e) {
+      console.warn("天気データの取得に失敗:", e);
+      locStatus.innerText = '現在地: 不明';
+      weatherStatus.innerText = '天気: 晴れ(デフォルト)';
+      window.currentJmaWeather = { name: '晴れ', type: 'clear' };
+      updateEnvironmentByTimeAndWeather();
+    }
+  }
+  function updateEnvironmentByTimeAndWeather() {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const timeNum = hour + minute / 60;
+
+    const viewport = document.getElementById('viewport');
+    const skyDeco = document.getElementById('sky-deco');
+    const canvas = document.getElementById('bg-canvas');
+    const timeStatusEl = document.getElementById('time-status');
+    const lamps = document.querySelectorAll('.streetlight');
+    const glows = document.querySelectorAll('.lamp-glow');
+
+    let timeName = "";
+    let isNight = false;
+    let skyBg = "";
+
+    const weatherInfo = window.currentJmaWeather || { name: '晴れ', type: 'clear' };
+    const wType = weatherInfo.type;
+    if (timeNum >= 5.0 && timeNum < 7.5) {
+      timeName = "早朝 (日の出)";
+      skyBg = "linear-gradient(to bottom, #ffb347 0%, #ffcc99 50%, #fceade 62%, #d6cebf 65%, #c2b7a3 100%)";
+      skyDeco.style.opacity = "0.9";
+      canvas.style.filter = "brightness(0.9)";
+      isNight = false;
+    } else if (timeNum >= 7.5 && timeNum < 17.0) {
+      timeName = "昼間";
+      if (wType === 'cloudy') {
+        skyBg = "linear-gradient(to bottom, #8ea1b0 0%, #b2c1ce 50%, #dbe3ea 62%, #c9c3b5 65%, #b5ab9a 100%)";
+      } else if (wType === 'rain' || wType === 'thunder') {
+        skyBg = "linear-gradient(to bottom, #4f5f70 0%, #728394 50%, #a4b2be 62%, #9e968b 65%, #827a70 100%)";
+      } else if (wType === 'snow') {
+        skyBg = "linear-gradient(to bottom, #b5c7d6 0%, #d4e0eb 50%, #f0f4f8 62%, #d6cebf 65%, #c2b7a3 100%)";
+      } else {
+        skyBg = "linear-gradient(to bottom, #7ac1ed 0%, #bce3f7 50%, #eef7fc 62%, #d6cebf 65%, #c2b7a3 100%)";
+      }
+      skyDeco.style.opacity = "1";
+      canvas.style.filter = (wType === 'rain' || wType === 'thunder') ? "brightness(0.7)" : "brightness(1.0)";
+      isNight = false;
+    } else if (timeNum >= 17.0 && timeNum < 19.5) {
+      timeName = "夕方 (日没)";
+      skyBg = "linear-gradient(to bottom, #ff5e62 0%, #ff9966 50%, #fbd3b2 62%, #b59f84 65%, #8c785f 100%)";
+      skyDeco.style.opacity = "0.8";
+      canvas.style.filter = "brightness(0.75)";
+      isNight = false;
+    } else {
+      timeName = "夜間";
+      skyBg = "linear-gradient(to bottom, #050b1a 0%, #0d1b33 50%, #15294a 62%, #22252b 65%, #14161a 100%)";
+      canvas.style.filter = "brightness(0.35)";
+      skyDeco.style.opacity = "0.7";
+      isNight = true;
+    }
+
+    viewport.style.background = skyBg;
+    timeStatusEl.innerText = `時間帯: ${timeName} (${hour}:${String(minute).padStart(2, '0')})`;
+
+    // 街灯の点灯
+    lamps.forEach(lampEl => {
+      const lampBulb = lampEl.querySelector('.lamp');
+      if (isNight || wType === 'rain' || wType === 'thunder') {
+        lampBulb.style.background = "#fff1b0";
+        lampBulb.style.boxShadow = "0 0 15px #ffcc00, 0 0 30px #ff9900, inset 0 0 5px #ffffff";
+      } else {
+        lampBulb.style.background = "#ccc";
+        lampBulb.style.boxShadow = "inset 0 2px 4px rgba(255,255,255,0.6)";
+      }
+    });
+
+    glows.forEach(glowEl => {
+      glowEl.style.opacity = (isNight || wType === 'rain' || wType === 'thunder') ? "1" : "0";
+    });
+
+    // 雲を描画
+    renderClouds(wType, isNight);
+
+    // ★ ここに以下の1行を追加
+    toggleRainEffect(wType, weatherInfo.name);
+  }
+
+  const COLOR_PRESETS = [
+    { name: 'blue', top: '#80c3ff', mid: '#0072ff', bottom: '#002699' },
+    { name: 'red', top: '#ff9999', mid: '#ff0033', bottom: '#80001a' },
+    { name: 'green', top: '#80ffaa', mid: '#00cc44', bottom: '#004d1a' },
+    { name: 'purple', top: '#e699ff', mid: '#9900cc', bottom: '#3d0052' },
+    { name: 'orange', top: '#ffcc80', mid: '#ff8800', bottom: '#804400' }
+  ];
+
+  let myColor = COLOR_PRESETS[0];
+  let myPos = { x: 1000, y: 1000 };
+  let mySlot = 1;
+  let myPeerId = "";
+  let peers = {};
+  let peer = null;
+  let roomIpPrefix = "";
+  let isTyping = false;
+
+  function createAvatarSVG(color) {
+    const id = 'grad_' + Math.random().toString(36).substr(2, 5);
+    return `
+      <svg class="avatar-svg" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="${color.top}" />
+            <stop offset="50%" stop-color="${color.mid}" />
+            <stop offset="100%" stop-color="${color.bottom}" />
+          </linearGradient>
+          <linearGradient id="gloss_${id}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M 10 88 C 10 52, 90 52, 90 88 C 90 92, 10 92, 10 88 Z" fill="url(#${id})" stroke="${color.bottom}" stroke-width="2.5"/>
+        <path d="M 22 72 A 28 18 0 0 1 78 72 A 35 18 0 0 0 22 72 Z" fill="url(#gloss_${id})" opacity="0.3"/>
+        <circle cx="50" cy="34" r="22" fill="url(#${id})" stroke="${color.bottom}" stroke-width="2.5"/>
+        <ellipse cx="50" cy="21" rx="14" ry="8" fill="url(#gloss_${id})"/>
+      </svg>
+    `;
+  }
+
+  const pickerEl = document.getElementById('color-picker');
+  COLOR_PRESETS.forEach((color, idx) => {
+    const btn = document.createElement('div');
+    btn.className = `color-btn ${idx === 0 ? 'selected' : ''}`;
+    btn.style.background = `linear-gradient(135deg, ${color.top}, ${color.mid})`;
+    btn.onclick = () => {
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      myColor = color;
+      updateMyAvatar();
+      broadcast({ type: 'update', pos: myPos, color: myColor });
+    };
+    pickerEl.appendChild(btn);
+  });
+
+  const chatInput = document.getElementById('my-chat-input');
+  chatInput.onfocus = () => isTyping = true;
+  chatInput.onblur = () => isTyping = false;
+  chatInput.onkeydown = (e) => {
+    if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+      const text = chatInput.value.trim();
+      showBubble('me', text);
+      broadcast({ type: 'chat', text: text });
+      chatInput.value = '';
+      chatInput.blur();
+    }
+  };
+
+  function update2DUIPositions() {
+    const avatarMe = document.getElementById('avatar-me');
+    const inputContainer = document.getElementById('my-chat-input-container');
+    
+    if (avatarMe && inputContainer) {
+      const rect = avatarMe.getBoundingClientRect();
+      const screenX = rect.left + rect.width / 2;
+      const screenY = rect.bottom + 4; 
+
+      inputContainer.style.left = `${screenX}px`;
+      inputContainer.style.top = `${screenY}px`;
+    }
+
+    document.querySelectorAll('.chat-bubble-2d').forEach(bubble => {
+      const targetId = bubble.dataset.targetId;
+      const targetAvatar = targetId === 'me' ? avatarMe : document.getElementById(`avatar-${targetId}`);
+      if (targetAvatar) {
+        const rect = targetAvatar.getBoundingClientRect();
+        const screenX = rect.left + rect.width / 2;
+        const screenY = rect.top - 35;
+
+        bubble.style.left = `${screenX}px`;
+        bubble.style.top = `${screenY}px`;
+      }
+    });
+  }
+
+  function updateMyAvatar() {
+    let el = document.getElementById(`avatar-me`);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = `avatar-me`;
+      el.className = 'avatar-container';
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'avatar-wrapper';
+
+      const shadow = document.createElement('div');
+      shadow.className = 'avatar-shadow';
+
+      const svgBox = document.createElement('div');
+      svgBox.className = 'avatar-svg-box';
+
+      wrapper.appendChild(shadow);
+      wrapper.appendChild(svgBox);
+      el.appendChild(wrapper);
+      document.getElementById('stage-3d').appendChild(el);
+    }
+
+    el.style.left = `${myPos.x}px`;
+    el.style.top = `${myPos.y}px`;
+    el.style.zIndex = Math.floor(myPos.y);
+
+    let svgBox = el.querySelector('.avatar-svg-box');
+    svgBox.innerHTML = createAvatarSVG(myColor);
+
+    requestAnimationFrame(update2DUIPositions);
+  }
+
+  function updatePlayerAvatar(id, data) {
+    let el = document.getElementById(`avatar-${id}`);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = `avatar-${id}`;
+      el.className = 'avatar-container';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'avatar-wrapper';
+
+      const shadow = document.createElement('div');
+      shadow.className = 'avatar-shadow';
+
+      const svgBox = document.createElement('div');
+      svgBox.className = 'avatar-svg-box';
+
+      wrapper.appendChild(shadow);
+      wrapper.appendChild(svgBox);
+      el.appendChild(wrapper);
+      document.getElementById('stage-3d').appendChild(el);
+    }
+
+    el.style.left = `${data.pos.x}px`;
+    el.style.top = `${data.pos.y}px`;
+    el.style.zIndex = Math.floor(data.pos.y);
+
+    let svgBox = el.querySelector('.avatar-svg-box');
+    svgBox.innerHTML = createAvatarSVG(data.color);
+  }
+
+  function removePlayer(id) {
+    const el = document.getElementById(`avatar-${id}`);
+    if (el) el.remove();
+    
+    const bubble = document.querySelector(`.chat-bubble-2d[data-target-id="${id}"]`);
+    if (bubble) bubble.remove();
+
+    delete peers[id];
+  }
+
+  function showBubble(id, text) {
+    const container = document.getElementById('bubble-container-2d');
+    let bubble = document.querySelector(`.chat-bubble-2d[data-target-id="${id}"]`);
+
+    if (bubble) {
+      clearTimeout(bubble.timer);
+    } else {
+      bubble = document.createElement('div');
+      bubble.className = 'chat-bubble-2d';
+      bubble.dataset.targetId = id;
+      container.appendChild(bubble);
+    }
+
+    bubble.innerText = text;
+    update2DUIPositions();
+
+    bubble.timer = setTimeout(() => {
+      if (bubble && bubble.parentNode) {
+        bubble.remove();
+      }
+    }, 5000);
+  }
+
+  function broadcast(data) {
+    Object.values(peers).forEach(conn => {
+      if (conn && conn.open) conn.send(data);
+    });
+  }
+
+  const keys = {};
+  window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  window.addEventListener('resize', update2DUIPositions);
+
+  function gameLoop() {
+    if (!isTyping) {
+      let moved = false;
+      const speed = 5;
+      if (keys['arrowup'] || keys['w']) { myPos.y -= speed; moved = true; }
+      if (keys['arrowdown'] || keys['s']) { myPos.y += speed; moved = true; }
+      if (keys['arrowleft'] || keys['a']) { myPos.x -= speed; moved = true; }
+      if (keys['arrowright'] || keys['d']) { myPos.x += speed; moved = true; }
+
+      const dx = myPos.x - 1000;
+      const dy = myPos.y - 1000;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 920) {
+        const angle = Math.atan2(dy, dx);
+        myPos.x = 1000 + Math.cos(angle) * 920;
+        myPos.y = 1000 + Math.sin(angle) * 920;
+      }
+
+      if (moved) {
+        updateMyAvatar();
+        broadcast({ type: 'update', pos: myPos, color: myColor });
+      }
+    }
+    
+    update2DUIPositions();
+    requestAnimationFrame(gameLoop);
+  }
+
+  async function initNetwork() {
+    drawPlazaTiles();
+    
+    // 天気と時間の取得（定期更新設定）
+    // 初回実行
+  await fetchLocationAndWeather();
+
+  // ① 時間（端末時計）の更新：1分（60000ms）ごとに背景グラデーションを即時更新
+  setInterval(() => {
+    updateEnvironmentByTimeAndWeather();
+  }, 60000);
+
+  // ② 天気の更新：3分（180000ms）ごとにアメダス・気象APIをバックグラウンド取得
+  setInterval(() => {
+    fetchLocationAndWeather();
+  }, 180000);
+
+    const statusEl = document.getElementById('status');
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      const ipStr = data.ip.replace(/\./g, '_');
+      roomIpPrefix = `wifichat_${ipStr}_`;
+
+      tryConnectSlot(1);
+    } catch (err) {
+      statusEl.innerText = 'IP取得失敗';
+      console.error(err);
+    }
+  }
+
+  function tryConnectSlot(slot) {
+    if (slot > 10) {
+      document.getElementById('status').innerText = '現在満員です';
+      return;
+    }
+
+    mySlot = slot;
+    myPeerId = roomIpPrefix + slot;
+    peer = new Peer(myPeerId);
+
+    peer.on('open', () => {
+      document.getElementById('status').innerText = '接続完了';
+      updateMyAvatar();
+      gameLoop();
+      connectToOtherSlots();
+    });
+
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id') {
+        peer.destroy();
+        tryConnectSlot(slot + 1);
+      }
+    });
+
+    peer.on('connection', conn => {
+      setupConnection(conn);
+    });
+  }
+
+  function connectToOtherSlots() {
+    for (let i = 1; i <= 10; i++) {
+      if (i !== mySlot) {
+        const targetId = roomIpPrefix + i;
+        const conn = peer.connect(targetId);
+        if (conn) setupConnection(conn);
+      }
+    }
+  }
+
+  function setupConnection(conn) {
+    conn.on('open', () => {
+      peers[conn.peer] = conn;
+      conn.send({ type: 'update', pos: myPos, color: myColor });
+    });
+
+    conn.on('data', data => {
+      if (data.type === 'update') {
+        updatePlayerAvatar(conn.peer, data);
+      } else if (data.type === 'chat') {
+        showBubble(conn.peer, data.text);
+      }
+    });
+
+    conn.on('close', () => removePlayer(conn.peer));
+    conn.on('error', () => removePlayer(conn.peer));
+  }
+
+  window.onload = initNetwork;
+  // --- 雨エフェクト用処理 ---
+  let rainDrops = [];
+  let rainAnimationFrame = null;
+
+  function initRain(intensity = 'normal') {
+    const canvas = document.getElementById('rain-canvas');
+    const skyDeco = document.getElementById('sky-deco');
+    if (!canvas || !skyDeco) return;
+    
+    // 空の表示エリアのサイズに合わせる
+    canvas.width = skyDeco.clientWidth;
+    canvas.height = skyDeco.clientHeight;
+    
+    let count = 80;
+    let speedBase = 10;
+    let lengthBase = 12;
+
+    if (intensity === 'light') {       // 小雨・弱い雨
+      count = 35;
+      speedBase = 6;
+      lengthBase = 8;
+    } else if (intensity === 'heavy') { // 強い雨 / 雷雨
+      count = 200;
+      speedBase = 18;
+      lengthBase = 20;
+    }
+
+    rainDrops = [];
+    for (let i = 0; i < count; i++) {
+      rainDrops.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        length: Math.random() * 8 + lengthBase,
+        speed: Math.random() * 4 + speedBase,
+      });
+    }
+  }
+
+  function renderRain() {
+    const canvas = document.getElementById('rain-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(200, 225, 255, 0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+
+    rainDrops.forEach(drop => {
+      ctx.beginPath();
+      ctx.moveTo(drop.x, drop.y);
+      ctx.lineTo(drop.x - drop.length * 0.15, drop.y + drop.length);
+      ctx.stroke();
+
+      drop.y += drop.speed;
+      drop.x -= drop.speed * 0.15;
+
+      // 空の最下部に達したら空の上部へリセット
+      if (drop.y > canvas.height) {
+        drop.y = -drop.length;
+        drop.x = Math.random() * (canvas.width + 50);
+      }
+    });
+
+    rainAnimationFrame = requestAnimationFrame(renderRain);
+  }
+
+  function toggleRainEffect(wType, weatherName = '') {
+    if (rainAnimationFrame) {
+      cancelAnimationFrame(rainAnimationFrame);
+      rainAnimationFrame = null;
+    }
+
+    const canvas = document.getElementById('rain-canvas');
+    if (!canvas) return;
+
+    if (wType === 'rain' || wType === 'thunder') {
+      let intensity = 'normal';
+      if (weatherName.includes('小雨') || weatherName.includes('弱い雨')) {
+        intensity = 'light';
+      } else if (weatherName.includes('強い') || weatherName.includes('激しい') || wType === 'thunder') {
+        intensity = 'heavy';
+      }
+
+      initRain(intensity);
+      renderRain();
+    } else {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  // 画面リサイズ時に雨キャンバスのサイズも変更
+  window.addEventListener('resize', () => {
+    const canvas = document.getElementById('rain-canvas');
+    const skyDeco = document.getElementById('sky-deco');
+    if (canvas && skyDeco) {
+      canvas.width = skyDeco.clientWidth;
+      canvas.height = skyDeco.clientHeight;
+    }
+  });
+</script>
+</body>
+</html>
