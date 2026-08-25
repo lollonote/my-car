@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Wi-Fi プラザ！</title>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; user-select: none; }
+    body {
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      background: #000;
+      touch-action: none;
+    }
+
+    #viewport {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      perspective: 1000px;
+      transition: background 1.5s ease;
+    }
+
+    /* 空と雲 */
+    .sky-decoration {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 55%;
+      pointer-events: none; z-index: 1; transition: opacity 1s ease; overflow: hidden;
+    }
+
+    .cloud {
+      position: absolute; background: rgba(255, 255, 255, 0.85);
+      border-radius: 50px; box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(4px); will-change: transform; animation: moveCloud linear infinite;
+    }
+
+    @keyframes moveCloud {
+      from { transform: translateX(-250px); }
+      to   { transform: translateX(100vw); }
+    }
+
+    /* 3Dステージ */
+    #stage-3d {
+      position: absolute; width: 2000px; height: 2000px;
+      left: 50%; top: 50%; margin-left: -1000px; margin-top: -1000px;
+      transform-style: preserve-3d; transform: rotateX(55deg);
+      z-index: 2; transition: transform 0.1s ease-out;
+    }
+
+    #ground-layer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      border-radius: 50%; overflow: hidden; z-index: 0;
+    }
+
+    #bg-canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      transition: filter 1s ease;
+    }
+
+    .lamp-glow {
+      position: absolute; width: 700px; height: 700px;
+      margin-left: -350px; margin-top: -350px;
+      background: radial-gradient(circle, rgba(255, 220, 120, 0.55) 0%, rgba(255, 170, 60, 0.2) 40%, rgba(255, 140, 0, 0.05) 65%, rgba(0,0,0,0) 80%);
+      border-radius: 50%; pointer-events: none; opacity: 0; filter: blur(20px); transition: opacity 1s ease; z-index: 1;
+    }
+
+    .streetlight {
+      position: absolute; width: 20px; height: 20px;
+      margin-left: -10px; margin-top: -10px;
+      transform-style: preserve-3d; z-index: 10;
+    }
+    .streetlight-wrapper {
+      width: 100%; height: 100%;
+      transform: rotateX(-55deg); transform-origin: bottom center; position: relative;
+    }
+    .pole { position: absolute; bottom: 0; left: 8px; width: 4px; height: 80px; background: #444; border-radius: 2px; }
+    .lamp {
+      position: absolute; bottom: 76px; left: -2px; width: 24px; height: 24px;
+      background: #ccc; border-radius: 50%; box-shadow: inset 0 2px 4px rgba(255,255,255,0.6);
+      transition: background 0.5s, box-shadow 0.5s;
+    }
+
+    /* UIパネル */
+    #ui-panel {
+      position: absolute; top: 15px; left: 15px;
+      background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      padding: 14px 18px; border-radius: 24px; border: 1.5px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15), inset 0 0 10px rgba(255,255,255,0.5);
+      z-index: 100; width: 260px; color: #1a365d; pointer-events: auto;
+    }
+
+    .header-title { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: #0066cc; text-transform: uppercase; margin-bottom: 2px; }
+    .room-display { font-size: 16px; font-weight: bold; color: #0f2b48; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .user-count-badge {
+      background: linear-gradient(135deg, #00c6ff, #0072ff); color: #fff;
+      padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0, 114, 255, 0.4); display: inline-block; margin-bottom: 6px;
+    }
+    .status-msg { font-size: 11px; color: #334e68; margin-bottom: 10px; padding: 4px 8px; background: rgba(255,255,255,0.4); border-radius: 8px; }
+    .ui-section-title { font-size: 10px; font-weight: bold; color: #0066cc; margin-top: 8px; margin-bottom: 4px; text-transform: uppercase; }
+
+    .status-select {
+      width: 100%; padding: 5px 8px; font-size: 11px; font-weight: bold; color: #0f2b48;
+      background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(0, 114, 255, 0.3);
+      border-radius: 10px; outline: none; cursor: pointer; backdrop-filter: blur(4px);
+    }
+
+    .color-picker { display: flex; gap: 8px; margin-top: 4px; }
+    .color-btn {
+      width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8);
+      cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    }
+    .color-btn:hover { transform: scale(1.2); }
+    .color-btn.selected { border-color: #000000; box-shadow: 0 0 0px #0072ff; }
+
+    /* 動的・半透明バーチャル操作スティック */
+    #joystick-container {
+      position: fixed;
+      width: 110px; height: 110px;
+      margin-left: -55px; margin-top: -55px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(4px);
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      border-radius: 50%;
+      z-index: 10000;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    #joystick-knob {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 44px; height: 44px;
+      margin-top: -22px; margin-left: -22px;
+      background: rgba(0, 198, 255, 0.4);
+      border: 1.5px solid rgba(255, 255, 255, 0.7);
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 114, 255, 0.2);
+      pointer-events: none;
+    }
+
+    /* アバターコンテナ */
+    .avatar-container {
+      position: absolute; width: 70px; height: 70px;
+      margin-left: -35px; margin-top: -35px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 20; transform-style: preserve-3d;
+    }
+    .avatar-wrapper { width: 100%; height: 100%; transform: rotateX(-55deg) scale(1.2); transform-origin: bottom center; position: relative; }
+    .avatar-shadow { position: absolute; bottom: 2px; left: 15%; width: 70%; height: 16px; background: rgba(0, 0, 0, 0.2); border-radius: 50%; filter: blur(4px); transform: rotateX(55deg); }
+    .avatar-svg-box { width: 100%; height: 100%; position: relative; z-index: 2; }
+    .avatar-svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 6px rgba(0,100,255,0.25)); }
+
+    /* チャット入力UI */
+    #my-chat-input-container {
+      position: fixed; width: 170px; z-index: 9999;
+      transform: translate(-50%, 0); pointer-events: auto;
+    }
+    #my-chat-input {
+      width: 100%; padding: 7px 12px; font-size: 11px; font-weight: bold;
+      border-radius: 20px; border: 1.5px solid rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(8px);
+      color: #102a43; text-align: center; outline: none;
+      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.15); transition: all 0.2s;
+    }
+    #my-chat-input:focus {
+      background: rgba(255, 255, 255, 0.95); border-color: #0072ff;
+      box-shadow: 0 4px 20px rgba(0, 114, 255, 0.3);
+    }
+
+    /* 頭上ラベル（2Dオーバーレイ） */
+    #label-container-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9997; }
+    .avatar-label-2d { position: fixed; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+    .avatar-name-badge {
+      background: rgba(15, 43, 72, 0.75); backdrop-filter: blur(4px);
+      color: #fff; font-size: 10px; font-weight: bold;
+      padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.4);
+      white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .avatar-status-badge {
+      background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(4px);
+      color: #0055cc; font-size: 9px; font-weight: 800;
+      padding: 1px 6px; border-radius: 8px; margin-bottom: 2px;
+      border: 1px solid rgba(0, 114, 255, 0.3); white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* 吹き出しUI */
+    #bubble-container-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9998; }
+    .chat-bubble-2d {
+      position: fixed; transform: translate(-50%, -100%);
+      background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(6px);
+      color: #0f2b48; padding: 6px 14px; border-radius: 16px;
+      font-size: 12px; font-weight: bold; white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,114,255,0.15); border: 1px solid rgba(255,255,255,0.8);
+      pointer-events: none; animation: pop 0.2s ease-out;
+    }
+    .chat-bubble-2d::after {
+      content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      border-width: 6px 6px 0; border-style: solid; border-color: rgba(255, 255, 255, 0.9) transparent;
+    }
+
+    @keyframes pop { from { transform: translate(-50%, -90%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -100%) scale(1); opacity: 1; } }
+
+    #rain-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+
+@keyframes pop { from { transform: translate(-50%, -90%) scale(0.8); opacity: 0; } to { transform: translate(-50%, -100%) scale(1); opacity: 1; } }
+
+    #rain-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+
+    
+    #welcome-modal {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      padding: 28px 24px;
+      max-width: 700px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-content h2 { font-size: 22px; color: #0f2b48; margin-bottom: 8px; }
+    .modal-description {
+      font-size: 13px; color: #486581; line-height: 1.5; margin-bottom: 20px;
+      background: #eef6ff; padding: 10px 14px; border-radius: 12px; border: 1px solid #d0e2ff;
+    }
+
+    .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+    .guide-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; align-items: center; }
+    .guide-card img { width: 100%; height: 200px; object-fit: contain; border-radius: 8px; margin-bottom: 8px; }
+    .guide-title { font-size: 12px; font-weight: bold; color: #0066cc; margin-bottom: 4px; }
+    .guide-text { font-size: 10.5px; color: #627d98; line-height: 1.3; }
+
+    #start-btn {
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      color: #fff; border: none; font-size: 15px; font-weight: bold;
+      padding: 12px 36px; border-radius: 30px; cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.35); transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #start-btn:hover { transform: scale(1.04); box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5); }
+
+  </style>
+
+  </style>
+</head>
+<body>
+
+<div id="welcome-modal">
+    <div class="modal-content">
+      <h2>Wi-Fi プラザへようこそ！</h2>
+      <p class="modal-description">
+        同じWi-Fi（学校や家、オフィスなど）に接続している人たちだけで集まれる広場です！
+      </p>
+
+      <div class="guide-grid">
+        <div class="guide-card">
+          <img src="5.png" alt="スティック操作">
+          <div class="guide-title">画面をタップ＆ドラッグ</div>
+          <div class="guide-text">画面のどこからでも透明なスティックが現れて移動できます。</div>
+        </div>
+        <div class="guide-card">
+          <img src="6.png" alt="WASD・矢印キー操作">
+          <div class="guide-title">キーボード操作</div>
+          <div class="guide-text">矢印キー や WASD キーを使ってアバターを自由に動かせます。</div>
+        </div>
+      </div>
+
+      <button id="start-btn" onclick="closeWelcomeModal()">広場に入る</button>
+    </div>
+  </div>
+
+<div id="viewport">
+    <div class="sky-decoration" id="sky-deco">
+      <canvas id="rain-canvas"></canvas>
+    </div>
+
+    <div id="stage-3d">
+      <div id="ground-layer">
+        <canvas id="bg-canvas"></canvas>
+        <div class="lamp-glow" style="left: 600px; top: 400px;"></div>
+        <div class="lamp-glow" style="left: 1400px; top: 400px;"></div>
+        <div class="lamp-glow" style="left: 400px; top: 1000px;"></div>
+        <div class="lamp-glow" style="left: 1600px; top: 1000px;"></div>
+        <div class="lamp-glow" style="left: 800px; top: 1500px;"></div>
+        <div class="lamp-glow" style="left: 1200px; top: 1500px;"></div>
+      </div>
+
+      <div class="streetlight" style="left: 600px; top: 400px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1400px; top: 400px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 400px; top: 1000px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1600px; top: 1000px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 800px; top: 1500px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+      <div class="streetlight" style="left: 1200px; top: 1500px;"><div class="streetlight-wrapper"><div class="pole"></div><div class="lamp"></div></div></div>
+    </div>
+
+    <!-- 画面最前面（2D）レイヤー -->
+    <div id="label-container-2d"></div>
+    <div id="bubble-container-2d"></div>
+
+    <div id="my-chat-input-container">
+      <input type="text" id="my-chat-input" placeholder="メッセージを入力..." autocomplete="off">
+    </div>
+
+    <!-- 動的バーチャルスティック UI -->
+    <div id="joystick-container">
+      <div id="joystick-knob"></div>
+    </div>
+    
+    <div id="ui-panel">
+      <div class="header-title">Wi-Fi Plaza</div>
+      <div class="room-display">
+        <span id="room-name-display">広場: 共通</span>
+      </div>
+      
+      <div class="user-count-badge" id="user-count">👥 今ここに 1人</div>
+      <div class="status-msg" id="plaza-status-msg">最初の1人になってみる？</div>
+
+      <div class="ui-section-title">ひとことステータス</div>
+      <select id="status-select" class="status-select">
+        <option value="散歩中...">🎵 散歩中...</option>
+        <option value="まったり">☕ まったり</option>
+        <option value="離席中">💤 離席中</option>
+        <option value="チャット歓迎">💬 チャット歓迎</option>
+        <option value="探索中">🔍 探索中</option>
+      </select>
+
+      <div class="ui-section-title">アバターカラー</div>
+      <div class="color-picker" id="color-picker"></div>
+      <p style="font-size: 10px; color: #486581; margin-top: 8px;">画面をドラッグ / 矢印キーで移動</p>
+    </div>
+  </div>
+
+<script>
+  const SCALE = 1.3;
+
+  /* ランダムニックネーム生成 */
+  const namePrefixes = ['あおい', 'きいろい', 'みどりの', 'のんびり', 'すばやい', 'ひかる', 'まったり', 'なぞの', 'さわやか', 'ふわふわ'];
+  const nameNouns = ['ペンギン', 'ねこ', 'いぬ', 'うさぎ', 'ひよこ', 'くま', 'きつね', 'カメ', 'たぬき', 'リス'];
+
+  function generateRandomName() {
+    const p = namePrefixes[Math.floor(Math.random() * namePrefixes.length)];
+    const n = nameNouns[Math.floor(Math.random() * nameNouns.length)];
+    return `${p}${n}`;
+  }
+
+  const myName = generateRandomName();
+  let myStatus = '散歩中...';
+
+  const amedasStationMap = {
+    '北海道': '14163', '青森県': '31441', '岩手県': '33101', '宮城県': '34121', '秋田県': '32286',
+    '山形県': '35216', '福島県': '36116', '茨城県': '40166', '栃木県': '41277', '群馬県': '42251',
+    '埼玉県': '43056', '千葉県': '45147', '東京都': '44132', '神奈川県': '46106', '新潟県': '54232',
+    '富山県': '55102', '石川県': '56227', '福井県': '57066', '山梨県': '49142', '長野県': '48141',
+    '岐阜県': '52586', '静岡県': '50221', '愛知県': '51106', '三重県': '53131', '滋賀県': '60131',
+    '京都府': '61286', '大阪府': '62078', '兵庫県': '63511', '奈良県': '64036', '和歌山県': '65041',
+    '鳥取県': '69122', '島根県': '68132', '岡山県': '66401', '広島県': '67411', '山口県': '81226',
+    '徳島県': '71106', '香川県': '72061', '愛媛県': '73166', '高知県': '74181', '福岡県': '82182',
+    '佐賀県': '85141', '長崎県': '84112', '熊本県': '86141', '大分県': '83216', '宮崎県': '87251',
+    '鹿児島県': '88686', '沖縄県': '91197'
+  };
+
+  /* 公園の時計塔（中心 1000, 1000） */
+  function createParkClock() {
+    const stage = document.getElementById('stage-3d');
+    
+    const clockEl = document.createElement('div');
+    clockEl.id = 'park-clock';
+    clockEl.style.cssText = `
+      position: absolute; left: 1000px; top: 1000px;
+      width: 0px; height: 0px; transform-style: preserve-3d; z-index: 1000;
+    `;
+
+    let ticksHtml = '';
+    for (let i = 0; i < 12; i++) {
+      const deg = i * 30;
+      const isMain = i % 3 === 0;
+      const width = isMain ? '3px' : '1px';
+      const height = isMain ? '7px' : '5px';
+      const color = isMain ? '#2c3e50' : '#7f8c8d';
+
+      ticksHtml += `
+        <div style="
+          position: absolute; top: 50%; left: 50%;
+          width: ${width}; height: ${height}; background: ${color};
+          transform-origin: center top; transform: translate(-50%, 0) rotate(${deg}deg) translateY(-25px);
+        "></div>
+      `;
+    }
+
+    clockEl.innerHTML = `
+      <div style="transform: rotateX(-55deg); transform-origin: bottom center; position: relative;">
+        <div style="position: absolute; bottom: 0; left: -6px; width: 12px; height: 110px; background: #2c3e50; border-radius: 4px; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);"></div>
+        <div style="position: absolute; bottom: 100px; left: -30px; width: 60px; height: 60px; background: #ffffff; border: 4px solid #2c3e50; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;">
+          ${ticksHtml}
+          <div style="position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: #000; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10;"></div>
+          <div id="clock-hour-hand" style="position: absolute; bottom: 50%; left: calc(50% - 2px); width: 4px; height: 16px; background: #2c3e50; transform-origin: bottom center; border-radius: 2px; z-index: 8;"></div>
+          <div id="clock-minute-hand" style="position: absolute; bottom: 50%; left: calc(50% - 1.5px); width: 3px; height: 22px; background: #e74c3c; transform-origin: bottom center; border-radius: 2px; z-index: 9;"></div>
+        </div>
+      </div>
+    `;
+
+    stage.appendChild(clockEl);
+  }
+
+  function updateParkClock() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    const hourDeg = (hours % 12) * 30 + minutes * 0.5;
+    const minuteDeg = minutes * 6;
+
+    const hourHand = document.getElementById('clock-hour-hand');
+    const minuteHand = document.getElementById('clock-minute-hand');
+
+    if (hourHand && minuteHand) {
+      hourHand.style.transform = `rotate(${hourDeg}deg)`;
+      minuteHand.style.transform = `rotate(${minuteDeg}deg)`;
+    }
+  }
+
+  function updatePlazaStatus() {
+    const totalPeople = Object.keys(peers).length + 1;
+    const countEl = document.getElementById('user-count');
+    const msgEl = document.getElementById('plaza-status-msg');
+
+    countEl.innerText = `👥 今ここに ${totalPeople}人`;
+
+    if (totalPeople === 1) {
+      msgEl.innerText = "最初の1人になってみる？";
+    } else if (totalPeople >= 2 && totalPeople <= 4) {
+      msgEl.innerText = `あなた以外に${totalPeople - 1}人います`;
+    } else if (totalPeople >= 5 && totalPeople <= 9) {
+      msgEl.innerText = "少しにぎわっています";
+    } else if (totalPeople >= 10 && totalPeople <= 29) {
+      msgEl.innerText = "🔥 にぎわっています";
+    } else if (totalPeople >= 30) {
+      msgEl.innerText = "✨ にぎわいMAX！";
+    }
+  }
+
+  function drawPlazaTiles() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width = 2000;
+    const height = canvas.height = 2000;
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const maxRadius = 980;
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.fillStyle = '#f0eee6';
+    ctx.fill();
+
+    const colors = ['#e8e5dc', '#ece9e0', '#e3dfd4', '#f5f3eb', '#dedad0'];
+    const ringWidth = 28 * SCALE; 
+    const tileWidthBase = 26 * SCALE; 
+    let ringCount = 0;
+
+    for (let r = 20 * SCALE; r < maxRadius; r += ringWidth) {
+      ringCount++;
+      const circumference = 2 * Math.PI * r;
+      const tileCount = Math.floor(circumference / tileWidthBase);
+      const angleStep = (2 * Math.PI) / tileCount;
+
+      const offsetAngle = (ringCount % 2 === 0) ? angleStep / 2 : 0;
+
+      for (let i = 0; i < tileCount; i++) {
+        const startAngle = i * angleStep + offsetAngle;
+        const endAngle = startAngle + angleStep - 0.012;
+
+        const colorIndex = (Math.abs(Math.sin(ringCount * 12 + i * 7)) * colors.length) | 0;
+        ctx.fillStyle = colors[colorIndex];
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, startAngle, endAngle, false);
+        ctx.arc(centerX, centerY, r + ringWidth - (2 * SCALE), endAngle, startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#d4cebe';
+    ctx.stroke();
+
+    const grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+    grad.addColorStop(0.7, 'rgba(255, 255, 255, 0)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function renderClouds(weatherType, isNight) {
+    const skyDeco = document.getElementById('sky-deco');
+    skyDeco.querySelectorAll('.cloud').forEach(c => c.remove());
+
+    let cloudCount = 3;
+    let cloudColor = '#ffffff';
+
+    if (weatherType === 'clear') {
+      cloudCount = 2;
+    } else if (weatherType === 'partly_cloudy') {
+      cloudCount = 4;
+    } else if (weatherType === 'cloudy') {
+      cloudCount = 7;
+      cloudColor = isNight ? '#4a525d' : '#d2d9e0';
+    } else if (weatherType === 'rain' || weatherType === 'thunder') {
+      cloudCount = 9;
+      cloudColor = isNight ? '#2a3038' : '#8fa0b0';
+    } else if (weatherType === 'snow') {
+      cloudCount = 6;
+      cloudColor = '#e6f0fa';
+    }
+
+    for (let i = 0; i < cloudCount; i++) {
+      const cloud = document.createElement('div');
+      cloud.className = 'cloud';
+      
+      const width = 100 + Math.random() * 120;
+      const height = width * 0.35;
+      const top = 5 + Math.random() * 35; 
+      const duration = 25 + Math.random() * 35;
+      const delay = -Math.random() * duration;
+
+      cloud.style.width = `${width}px`;
+      cloud.style.height = `${height}px`;
+      cloud.style.top = `${top}%`;
+      cloud.style.background = cloudColor;
+      cloud.style.animationDuration = `${duration}s`;
+      cloud.style.animationDelay = `${delay}s`;
+
+      skyDeco.appendChild(cloud);
+    }
+  }
+
+  function parseJmaWeather(text) {
+    const primaryText = text.trim().split(/[\s ]+/)[0];
+
+    if (primaryText.includes('雨') || primaryText.includes('雷')) {
+      return { name: text, type: 'rain' };
+    }
+    if (primaryText.includes('雪')) {
+      return { name: text, type: 'snow' };
+    }
+    if (primaryText.includes('曇') || primaryText.includes('くもり')) {
+      return { name: text, type: 'cloudy' };
+    }
+    return { name: text, type: 'clear' };
+  }
+
+  async function getRealtimeAmedasRain(regionName) {
+    try {
+      const timeRes = await fetch('https://www.jma.go.jp/bosai/amedas/data/latest_time.txt');
+      const timeText = await timeRes.text();
+      const formattedTime = timeText.trim().replace(/[-T:+]/g, '').slice(0, 10) + '0000';
+
+      const amedasRes = await fetch(`https://www.jma.go.jp/bosai/amedas/data/map/${formattedTime}.json`);
+      const amedasData = await amedasRes.json();
+
+      const stnId = amedasStationMap[regionName] || '44132';
+      const station = amedasData[stnId];
+
+      if (station && station.rain10m && station.rain10m[0] > 0) {
+        const rainVal = station.rain10m[0];
+        if (rainVal >= 2.0) return { name: '強い雨', type: 'rain' };
+        if (rainVal >= 0.5) return { name: '雨', type: 'rain' };
+        return { name: '小雨', type: 'rain' };
+      }
+      return null;
+    } catch (e) {
+      console.warn('アメダス取得スキップ:', e);
+      return null;
+    }
+  }
+
+  async function fetchLocationAndWeather() {
+    try {
+      const ipRes = await fetch('https://ipwho.is/?lang=ja');
+      const ipData = await ipRes.json();
+      if (!ipData.success) throw new Error('位置情報エラー');
+
+      const region = ipData.region || ipData.city || '東京都';
+      const amedasResult = await getRealtimeAmedasRain(region);
+
+      if (amedasResult) {
+        window.currentJmaWeather = amedasResult;
+      } else {
+        const prefCodeMap = {
+          '北海道': '016000', '青森県': '020000', '岩手県': '030000', '宮城県': '040000', '秋田県': '050000',
+          '山形県': '060000', '福島県': '070000', '茨城県': '080000', '栃木県': '41277', '群馬県': '100000',
+          '埼玉県': '110000', '千葉県': '120000', '東京都': '130000', '神奈川県': '140000', '新潟県': '150000',
+          '富山県': '160000', '石川県': '170000', '福井県': '180000', '山梨県': '190000', '長野県': '200000',
+          '岐阜県': '52586', '静岡県': '220000', '愛知県': '230000', '三重県': '240000', '滋賀県': '60131',
+          '京都府': '260000', '大阪府': '270000', '兵庫県': '280000', '奈良県': '290000', '和歌山県': '65041',
+          '鳥取県': '310000', '島根県': '320000', '岡山県': '330000', '広島県': '340000', '山口県': '350000',
+          '徳島県': '360000', '香川県': '370000', '愛媛県': '380000', '高知県': '390000', '福岡県': '400000',
+          '佐賀県': '410000', '長崎県': '420000', '熊本県': '430000', '大分県': '440000', '宮崎県': '450000',
+          '鹿児島県': '460100', '沖縄県': '471000'
+        };
+
+        const jmaCode = prefCodeMap[region] || '130000';
+        const jmaRes = await fetch(`https://www.jma.go.jp/bosai/forecast/data/forecast/${jmaCode}.json`);
+        const jmaData = await jmaRes.json();
+
+        const weatherText = jmaData[0].timeSeries[0].areas[0].weathers[0];
+        const parsedWeather = parseJmaWeather(weatherText);
+
+        window.currentJmaWeather = parsedWeather;
+      }
+
+      updateEnvironmentByTimeAndWeather();
+
+    } catch (e) {
+      console.warn("天気データの取得に失敗:", e);
+      window.currentJmaWeather = { name: '晴れ', type: 'clear' };
+      updateEnvironmentByTimeAndWeather();
+    }
+  }
+
+  function updateEnvironmentByTimeAndWeather() {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const timeNum = hour + minute / 60;
+
+    const viewport = document.getElementById('viewport');
+    const skyDeco = document.getElementById('sky-deco');
+    const canvas = document.getElementById('bg-canvas');
+    const lamps = document.querySelectorAll('.streetlight');
+    const glows = document.querySelectorAll('.lamp-glow');
+
+    let isNight = false;
+    let skyBg = "";
+
+    const weatherInfo = window.currentJmaWeather || { name: '晴れ', type: 'clear' };
+    const wType = weatherInfo.type;
+    if (timeNum >= 5.0 && timeNum < 7.5) {
+      skyBg = "linear-gradient(to bottom, #ffb347 0%, #ffcc99 50%, #fceade 62%, #d6cebf 65%, #c2b7a3 100%)";
+      skyDeco.style.opacity = "0.9";
+      canvas.style.filter = "brightness(0.9)";
+      isNight = false;
+    } else if (timeNum >= 7.5 && timeNum < 17.0) {
+      if (wType === 'cloudy') {
+        skyBg = "linear-gradient(to bottom, #8ea1b0 0%, #b2c1ce 50%, #dbe3ea 62%, #c9c3b5 65%, #b5ab9a 100%)";
+      } else if (wType === 'rain' || wType === 'thunder') {
+        skyBg = "linear-gradient(to bottom, #4f5f70 0%, #728394 50%, #a4b2be 62%, #9e968b 65%, #827a70 100%)";
+      } else if (wType === 'snow') {
+        skyBg = "linear-gradient(to bottom, #b5c7d6 0%, #d4e0eb 50%, #f0f4f8 62%, #d6cebf 65%, #c2b7a3 100%)";
+      } else {
+        skyBg = "linear-gradient(to bottom, #7ac1ed 0%, #bce3f7 50%, #eef7fc 62%, #d6cebf 65%, #c2b7a3 100%)";
+      }
+      skyDeco.style.opacity = "1";
+      canvas.style.filter = (wType === 'rain' || wType === 'thunder') ? "brightness(0.7)" : "brightness(1.0)";
+      isNight = false;
+    } else if (timeNum >= 17.0 && timeNum < 19.5) {
+      skyBg = "linear-gradient(to bottom, #ff5e62 0%, #ff9966 50%, #fbd3b2 62%, #b59f84 65%, #8c785f 100%)";
+      skyDeco.style.opacity = "0.8";
+      canvas.style.filter = "brightness(0.75)";
+      isNight = false;
+    } else {
+      skyBg = "linear-gradient(to bottom, #050b1a 0%, #0d1b33 50%, #15294a 62%, #22252b 65%, #14161a 100%)";
+      canvas.style.filter = "brightness(0.35)";
+      skyDeco.style.opacity = "0.7";
+      isNight = true;
+    }
+
+    viewport.style.background = skyBg;
+
+    lamps.forEach(lampEl => {
+      const lampBulb = lampEl.querySelector('.lamp');
+      if (isNight || wType === 'rain' || wType === 'thunder') {
+        lampBulb.style.background = "#fff1b0";
+        lampBulb.style.boxShadow = "0 0 15px #ffcc00, 0 0 30px #ff9900, inset 0 0 5px #ffffff";
+      } else {
+        lampBulb.style.background = "#ccc";
+        lampBulb.style.boxShadow = "inset 0 2px 4px rgba(255,255,255,0.6)";
+      }
+    });
+
+    glows.forEach(glowEl => {
+      glowEl.style.opacity = (isNight || wType === 'rain' || wType === 'thunder') ? "1" : "0";
+    });
+
+    renderClouds(wType, isNight);
+    toggleRainEffect(wType, weatherInfo.name);
+  }
+
+  const COLOR_PRESETS = [
+    { name: 'blue', top: '#80c3ff', mid: '#0072ff', bottom: '#002699' },
+    { name: 'red', top: '#ff9999', mid: '#ff0033', bottom: '#80001a' },
+    { name: 'green', top: '#80ffaa', mid: '#00cc44', bottom: '#004d1a' },
+    { name: 'purple', top: '#e699ff', mid: '#9900cc', bottom: '#3d0052' },
+    { name: 'orange', top: '#ffcc80', mid: '#ff8800', bottom: '#804400' }
+  ];
+
+  let myColor = COLOR_PRESETS[0];
+  let myPos = { x: 1000, y: 1000 };
+  let mySlot = 1;
+  let myPeerId = "";
+  let peers = {};
+  let peer = null;
+  let roomIpPrefix = "";
+  let isTyping = false;
+
+  /* 動的スティック操作変数 */
+  let joystickVector = { x: 0, y: 0 };
+  let joystickActive = false;
+  let joystickOrigin = { x: 0, y: 0 };
+  const joyRadius = 35;
+
+  function createAvatarSVG(color) {
+    const id = 'grad_' + Math.random().toString(36).substr(2, 5);
+    return `
+      <svg class="avatar-svg" viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="${id}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="${color.top}" />
+            <stop offset="50%" stop-color="${color.mid}" />
+            <stop offset="100%" stop-color="${color.bottom}" />
+          </linearGradient>
+          <linearGradient id="gloss_${id}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M 10 88 C 10 52, 90 52, 90 88 C 90 92, 10 92, 10 88 Z" fill="url(#${id})" stroke="${color.bottom}" stroke-width="2.5"/>
+        <path d="M 22 72 A 28 18 0 0 1 78 72 A 35 18 0 0 0 22 72 Z" fill="url(#gloss_${id})" opacity="0.3"/>
+        <circle cx="50" cy="34" r="22" fill="url(#${id})" stroke="${color.bottom}" stroke-width="2.5"/>
+        <ellipse cx="50" cy="21" rx="14" ry="8" fill="url(#gloss_${id})"/>
+      </svg>
+    `;
+  }
+
+  const pickerEl = document.getElementById('color-picker');
+  COLOR_PRESETS.forEach((color, idx) => {
+    const btn = document.createElement('div');
+    btn.className = `color-btn ${idx === 0 ? 'selected' : ''}`;
+    btn.style.background = color.mid;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      myColor = color;
+      updateMyAvatar();
+      broadcast({ type: 'update', pos: myPos, color: myColor, name: myName, status: myStatus });
+    };
+    pickerEl.appendChild(btn);
+  });
+
+  const statusSelect = document.getElementById('status-select');
+  statusSelect.onchange = (e) => {
+    myStatus = e.target.value;
+    updateMyAvatar();
+    e.target.blur();
+    broadcast({ type: 'update', pos: myPos, color: myColor, name: myName, status: myStatus });
+  };
+
+  const chatInput = document.getElementById('my-chat-input');
+  chatInput.onfocus = () => isTyping = true;
+  chatInput.onblur = () => isTyping = false;
+  chatInput.onkeydown = (e) => {
+    if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+      const text = chatInput.value.trim();
+      showBubble('me', text);
+      broadcast({ type: 'chat', text: text });
+      chatInput.value = '';
+      chatInput.blur();
+    }
+  };
+
+  function updateCamera() {
+    const stage = document.getElementById('stage-3d');
+    const offsetX = 1000 - myPos.x;
+    const offsetY = 1000 - myPos.y;
+    stage.style.transform = `rotateX(55deg) translate3d(${offsetX}px, ${offsetY}px, 0px)`;
+  }
+
+  function update2DUIPositions() {
+    const avatarMe = document.getElementById('avatar-me');
+    const inputContainer = document.getElementById('my-chat-input-container');
+    
+    if (avatarMe && inputContainer) {
+      const rect = avatarMe.getBoundingClientRect();
+      const screenX = rect.left + rect.width / 2;
+      const screenY = rect.bottom + 4; 
+
+      inputContainer.style.left = `${screenX}px`;
+      inputContainer.style.top = `${screenY}px`;
+    }
+
+    document.querySelectorAll('.avatar-label-2d').forEach(label => {
+      const targetId = label.dataset.targetId;
+      const targetAvatar = targetId === 'me' ? avatarMe : document.getElementById(`avatar-${targetId}`);
+      if (targetAvatar) {
+        const rect = targetAvatar.getBoundingClientRect();
+        const screenX = rect.left + rect.width / 2;
+        const screenY = rect.top - 30;
+
+        label.style.left = `${screenX}px`;
+        label.style.top = `${screenY}px`;
+      }
+    });
+
+    document.querySelectorAll('.chat-bubble-2d').forEach(bubble => {
+      const targetId = bubble.dataset.targetId;
+      const targetAvatar = targetId === 'me' ? avatarMe : document.getElementById(`avatar-${targetId}`);
+      if (targetAvatar) {
+        const rect = targetAvatar.getBoundingClientRect();
+        const screenX = rect.left + rect.width / 2;
+        const screenY = rect.top - 80;
+
+        bubble.style.left = `${screenX}px`;
+        bubble.style.top = `${screenY}px`;
+      }
+    });
+  }
+
+  function updateAvatarLabel(id, name, status) {
+    const container = document.getElementById('label-container-2d');
+    let label = document.querySelector(`.avatar-label-2d[data-target-id="${id}"]`);
+
+    if (!label) {
+      label = document.createElement('div');
+      label.className = 'avatar-label-2d';
+      label.dataset.targetId = id;
+
+      const statusBadge = document.createElement('div');
+      statusBadge.className = 'avatar-status-badge';
+
+      const nameBadge = document.createElement('div');
+      nameBadge.className = 'avatar-name-badge';
+
+      label.appendChild(statusBadge);
+      label.appendChild(nameBadge);
+      container.appendChild(label);
+    }
+
+    label.querySelector('.avatar-status-badge').innerText = status;
+    label.querySelector('.avatar-name-badge').innerText = name;
+  }
+
+  function updateMyAvatar() {
+    let el = document.getElementById(`avatar-me`);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = `avatar-me`;
+      el.className = 'avatar-container';
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'avatar-wrapper';
+
+      const shadow = document.createElement('div');
+      shadow.className = 'avatar-shadow';
+
+      const svgBox = document.createElement('div');
+      svgBox.className = 'avatar-svg-box';
+
+      wrapper.appendChild(shadow);
+      wrapper.appendChild(svgBox);
+      el.appendChild(wrapper);
+      document.getElementById('stage-3d').appendChild(el);
+    }
+
+    el.style.left = `${myPos.x}px`;
+    el.style.top = `${myPos.y}px`;
+    el.style.zIndex = Math.floor(myPos.y);
+
+    let svgBox = el.querySelector('.avatar-svg-box');
+    svgBox.innerHTML = createAvatarSVG(myColor);
+
+    updateAvatarLabel('me', myName, myStatus);
+    requestAnimationFrame(update2DUIPositions);
+  }
+
+  function updatePlayerAvatar(id, data) {
+    let el = document.getElementById(`avatar-${id}`);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = `avatar-${id}`;
+      el.className = 'avatar-container';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'avatar-wrapper';
+
+      const shadow = document.createElement('div');
+      shadow.className = 'avatar-shadow';
+
+      const svgBox = document.createElement('div');
+      svgBox.className = 'avatar-svg-box';
+
+      wrapper.appendChild(shadow);
+      wrapper.appendChild(svgBox);
+      el.appendChild(wrapper);
+      document.getElementById('stage-3d').appendChild(el);
+    }
+
+    el.style.left = `${data.pos.x}px`;
+    el.style.top = `${data.pos.y}px`;
+    el.style.zIndex = Math.floor(data.pos.y);
+
+    let svgBox = el.querySelector('.avatar-svg-box');
+    svgBox.innerHTML = createAvatarSVG(data.color);
+
+    updateAvatarLabel(id, data.name || 'ゲスト', data.status || '散歩中...');
+  }
+
+  function removePlayer(id) {
+    const el = document.getElementById(`avatar-${id}`);
+    if (el) el.remove();
+    
+    const label = document.querySelector(`.avatar-label-2d[data-target-id="${id}"]`);
+    if (label) label.remove();
+
+    const bubble = document.querySelector(`.chat-bubble-2d[data-target-id="${id}"]`);
+    if (bubble) bubble.remove();
+
+    delete peers[id];
+    updatePlazaStatus();
+  }
+
+  function showBubble(id, text) {
+    const container = document.getElementById('bubble-container-2d');
+    let bubble = document.querySelector(`.chat-bubble-2d[data-target-id="${id}"]`);
+
+    if (bubble) {
+      clearTimeout(bubble.timer);
+    } else {
+      bubble = document.createElement('div');
+      bubble.className = 'chat-bubble-2d';
+      bubble.dataset.targetId = id;
+      container.appendChild(bubble);
+    }
+
+    bubble.innerText = text;
+    update2DUIPositions();
+
+    bubble.timer = setTimeout(() => {
+      if (bubble && bubble.parentNode) {
+        bubble.remove();
+      }
+    }, 5000);
+  }
+
+  function broadcast(data) {
+    Object.values(peers).forEach(conn => {
+      if (conn && conn.open) conn.send(data);
+    });
+  }
+
+  /* キーボード入力 */
+  const keys = {};
+  window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  window.addEventListener('resize', update2DUIPositions);
+
+  /* 動的スティック（画面クリック/タッチした場所に出現） */
+  const joyContainer = document.getElementById('joystick-container');
+  const joyKnob = document.getElementById('joystick-knob');
+
+  window.addEventListener('pointerdown', e => {
+    // UIパネルや入力フォーム上の操作時はスティックを出さない
+    if (e.target.closest('#ui-panel') || e.target.closest('#my-chat-input-container')) return;
+
+    joystickActive = true;
+    joystickOrigin = { x: e.clientX, y: e.clientY };
+
+    joyContainer.style.left = `${e.clientX}px`;
+    joyContainer.style.top = `${e.clientY}px`;
+    joyContainer.style.display = 'block';
+    joyKnob.style.transform = `translate(0px, 0px)`;
+
+    joystickVector = { x: 0, y: 0 };
+  });
+
+  window.addEventListener('pointermove', e => {
+    if (!joystickActive) return;
+
+    const dx = e.clientX - joystickOrigin.x;
+    const dy = e.clientY - joystickOrigin.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist === 0) {
+      joystickVector = { x: 0, y: 0 };
+      joyKnob.style.transform = `translate(0px, 0px)`;
+      return;
+    }
+
+    const maxDist = Math.min(dist, joyRadius);
+    const angle = Math.atan2(dy, dx);
+
+    const knobX = Math.cos(angle) * maxDist;
+    const knobY = Math.sin(angle) * maxDist;
+
+    joyKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+    joystickVector = { x: knobX / joyRadius, y: knobY / joyRadius };
+  });
+
+  function resetJoystick() {
+    joystickActive = false;
+    joystickVector = { x: 0, y: 0 };
+    joyContainer.style.display = 'none';
+  }
+
+  window.addEventListener('pointerup', resetJoystick);
+  window.addEventListener('pointercancel', resetJoystick);
+
+  function gameLoop() {
+    if (!isTyping) {
+      let moved = false;
+      const speed = 5;
+
+      let moveX = 0;
+      let moveY = 0;
+
+      // キーボード操作
+      if (keys['arrowup'] || keys['w']) moveY -= 1;
+      if (keys['arrowdown'] || keys['s']) moveY += 1;
+      if (keys['arrowleft'] || keys['a']) moveX -= 1;
+      if (keys['arrowright'] || keys['d']) moveX += 1;
+
+      // スティック操作の加算
+      if (joystickVector.x !== 0 || joystickVector.y !== 0) {
+        moveX += joystickVector.x;
+        moveY += joystickVector.y;
+      }
+
+      if (moveX !== 0 || moveY !== 0) {
+        // 斜め移動時の速度正規化（キーボードのみの場合）
+        if (keys['arrowup'] || keys['w'] || keys['arrowdown'] || keys['s'] || keys['arrowleft'] || keys['a'] || keys['arrowright'] || keys['d']) {
+          const len = Math.hypot(moveX, moveY);
+          if (len > 1) {
+            moveX /= len;
+            moveY /= len;
+          }
+        }
+
+        myPos.x += moveX * speed;
+        myPos.y += moveY * speed;
+        moved = true;
+      }
+
+      // エリア境界制限（円形）
+      const dx = myPos.x - 1000;
+      const dy = myPos.y - 1000;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 920) {
+        const angle = Math.atan2(dy, dx);
+        myPos.x = 1000 + Math.cos(angle) * 920;
+        myPos.y = 1000 + Math.sin(angle) * 920;
+      }
+
+      if (moved) {
+        updateMyAvatar();
+        updateCamera();
+        broadcast({ type: 'update', pos: myPos, color: myColor, name: myName, status: myStatus });
+      }
+    }
+    
+    update2DUIPositions();
+    requestAnimationFrame(gameLoop);
+  }
+
+  async function initNetwork() {
+    drawPlazaTiles();
+    await fetchLocationAndWeather();
+
+    createParkClock();
+    updateParkClock();
+    setInterval(updateParkClock, 10000);
+
+    setInterval(() => {
+      updateEnvironmentByTimeAndWeather();
+    }, 60000);
+
+    setInterval(() => {
+      fetchLocationAndWeather();
+    }, 180000);
+
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      const ipStr = data.ip.replace(/\./g, '_');
+      roomIpPrefix = `wifichat_${ipStr}_`;
+
+      tryConnectSlot(1);
+    } catch (err) {
+      console.error('IP取得失敗', err);
+    }
+  }
+
+  function tryConnectSlot(slot) {
+    if (slot > 10) return;
+
+    mySlot = slot;
+    myPeerId = roomIpPrefix + slot;
+    peer = new Peer(myPeerId);
+
+    peer.on('open', () => {
+      updateMyAvatar();
+      updateCamera();
+      updatePlazaStatus();
+      gameLoop();
+      connectToOtherSlots();
+    });
+
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id') {
+        peer.destroy();
+        tryConnectSlot(slot + 1);
+      }
+    });
+
+    peer.on('connection', conn => {
+      setupConnection(conn);
+    });
+  }
+
+  function connectToOtherSlots() {
+    for (let i = 1; i <= 10; i++) {
+      if (i !== mySlot) {
+        const targetId = roomIpPrefix + i;
+        const conn = peer.connect(targetId);
+        if (conn) setupConnection(conn);
+      }
+    }
+  }
+
+  function setupConnection(conn) {
+    conn.on('open', () => {
+      peers[conn.peer] = conn;
+      updatePlazaStatus();
+      conn.send({ type: 'update', pos: myPos, color: myColor, name: myName, status: myStatus });
+    });
+
+    conn.on('data', data => {
+      if (data.type === 'update') {
+        updatePlayerAvatar(conn.peer, data);
+      } else if (data.type === 'chat') {
+        showBubble(conn.peer, data.text);
+      }
+    });
+
+    conn.on('close', () => removePlayer(conn.peer));
+    conn.on('error', () => removePlayer(conn.peer));
+  }
+
+  window.onload = initNetwork;
+
+  let rainDrops = [];
+  let rainAnimationFrame = null;
+
+  function initRain(intensity = 'normal') {
+    const canvas = document.getElementById('rain-canvas');
+    const skyDeco = document.getElementById('sky-deco');
+    if (!canvas || !skyDeco) return;
+    
+    canvas.width = skyDeco.clientWidth;
+    canvas.height = skyDeco.clientHeight;
+    
+    let count = 80;
+    let speedBase = 10;
+    let lengthBase = 12;
+
+    if (intensity === 'light') {
+      count = 35; speedBase = 6; lengthBase = 8;
+    } else if (intensity === 'heavy') {
+      count = 200; speedBase = 18; lengthBase = 20;
+    }
+
+    rainDrops = [];
+    for (let i = 0; i < count; i++) {
+      rainDrops.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        length: Math.random() * 8 + lengthBase,
+        speed: Math.random() * 4 + speedBase,
+      });
+    }
+  }
+
+  function renderRain() {
+    const canvas = document.getElementById('rain-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(200, 225, 255, 0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+
+    rainDrops.forEach(drop => {
+      ctx.beginPath();
+      ctx.moveTo(drop.x, drop.y);
+      ctx.lineTo(drop.x - drop.length * 0.15, drop.y + drop.length);
+      ctx.stroke();
+
+      drop.y += drop.speed;
+      drop.x -= drop.speed * 0.15;
+
+      if (drop.y > canvas.height) {
+        drop.y = -drop.length;
+        drop.x = Math.random() * (canvas.width + 50);
+      }
+    });
+
+    rainAnimationFrame = requestAnimationFrame(renderRain);
+  }
+
+  function toggleRainEffect(wType, weatherName = '') {
+    if (rainAnimationFrame) {
+      cancelAnimationFrame(rainAnimationFrame);
+      rainAnimationFrame = null;
+    }
+
+    const canvas = document.getElementById('rain-canvas');
+    if (!canvas) return;
+
+    if (wType === 'rain' || wType === 'thunder') {
+      let intensity = 'normal';
+      if (weatherName.includes('小雨') || weatherName.includes('弱い雨')) {
+        intensity = 'light';
+      } else if (weatherName.includes('強い') || weatherName.includes('激しい') || wType === 'thunder') {
+        intensity = 'heavy';
+      }
+
+      initRain(intensity);
+      renderRain();
+    } else {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    const canvas = document.getElementById('rain-canvas');
+    const skyDeco = document.getElementById('sky-deco');
+    if (canvas && skyDeco) {
+      canvas.width = skyDeco.clientWidth;
+      canvas.height = skyDeco.clientHeight;
+    }
+  });
+
+window.addEventListener('resize', () => {
+    const canvas = document.getElementById('rain-canvas');
+    const skyDeco = document.getElementById('sky-deco');
+    if (canvas && skyDeco) {
+      canvas.width = skyDeco.clientWidth;
+      canvas.height = skyDeco.clientHeight;
+    }
+  });
+
+  function closeWelcomeModal() {
+    const modal = document.getElementById('welcome-modal');
+    if (modal) {
+      modal.style.opacity = '0';
+      modal.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => {
+        modal.remove();
+      }, 300);
+    }
+  }
+
+</script>
+</body>
+</script>
+</body>
+</html>
